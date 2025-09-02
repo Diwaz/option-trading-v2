@@ -9,19 +9,8 @@ interface Asset {
   buy: number,
   ask: number
 }
-const mData: Record<string, any> = [];
 const marketData: { price_updates: Asset[] } = {
   price_updates: [
-    // {
-    //   "asset": "SOL",
-    //   "buy": 200,
-    //   "ask": 202
-    // },
-    // {
-    //   "asset": "SOL",
-    //   "buy": 200,
-    //   "ask": 202
-    // },
   ]
 }
 ws.on('open', () => {
@@ -30,16 +19,12 @@ ws.on('open', () => {
     JSON.stringify(
       {
         "method": "SUBSCRIBE",
-        "params": ["trade.SOL_USDC", "trade.SOL_USDC_PERP"]
+        "params": ["bookTicker.SOL_USDC", "bookTicker.SOL_USDC_PERP", "bookTicker.BTC_USDC", "bookTicker.BTC_USDC_PERP"]
       }
     )
   )
 })
-interface Trade {
-  s: string,
-  buy: number,
-  ask: number
-}
+
 const updatePrice = (symbol: string, buyPrice: number, sellPrice: number) => {
   console.log(symbol, buyPrice, sellPrice);
   const entry = marketData.price_updates.find(trade => trade.asset === symbol)
@@ -57,8 +42,8 @@ const updatePrice = (symbol: string, buyPrice: number, sellPrice: number) => {
 ws.on("message", (msg) => {
   // console.log(JSON.parse(msg.toString()));
   const trade = JSON.parse(msg.toString())
-  console.log("trades", trade.data.s);
-  updatePrice(trade.data.s, parseInt(trade.data.p) * 1.01, parseInt(trade.data.p) * 0.99);
+  console.log("trades", trade.data);
+  updatePrice(trade.data.s, parseInt(trade.data.b), parseInt(trade.data.a));
 })
 setInterval(() => {
   publisher.publish("data", JSON.stringify(marketData))
