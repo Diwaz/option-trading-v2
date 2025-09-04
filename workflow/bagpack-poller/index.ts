@@ -11,6 +11,14 @@ interface Asset {
 }
 const marketData: { price_updates: Asset[] } = {
   price_updates: [
+    // "sol": {
+    // "buy" : 123,
+    // "sell": 125
+    // },
+    // "eth": {
+    // "buy": 200,
+    // "sell": 205,
+    // }
   ]
 }
 ws.on('open', () => {
@@ -45,7 +53,16 @@ ws.on("message", (msg) => {
   console.log("trades", trade.data);
   updatePrice(trade.data.s, parseInt(trade.data.b), parseInt(trade.data.a));
 })
-setInterval(() => {
-  publisher.publish("data", JSON.stringify(marketData))
+setInterval(async () => {
+
+  for (const a of marketData.price_updates) {
+    await publisher.xAdd("orders", "*", {
+      action: "PRICEUPDATE",
+      asset: a.asset,
+      buy: a.buy.toString(),
+      ask: a.ask.toString()
+    });
+  }
+  // publisher.publish("data", JSON.stringify(marketData))
 }, 100)
 

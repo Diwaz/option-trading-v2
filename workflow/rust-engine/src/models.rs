@@ -6,6 +6,7 @@ pub enum Action {
     OrderCreate,
     CloseOrder,
     CheckBalance,
+    PriceUpdate,
 }
 
 #[derive(Debug, Deserialize)]
@@ -18,4 +19,6 @@ pub struct Command {
     pub leverage: Option<String>,
     pub asset: Option<String>,
     pub slippage: Option<String>,
+    pub buy: Option<String>,
+    pub ask: Option<String>,
 }
