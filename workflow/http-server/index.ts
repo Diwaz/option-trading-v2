@@ -19,7 +19,7 @@ interface CreateOrder {
 }
 interface ResponseFromEngine {
   orderId: string,
-  action: EngineResponse,
+  action: String,
 
 }
 interface ResponseFromEngineBalance {
@@ -79,15 +79,15 @@ app.post('/api/v1/trade/create', async (req, res) => {
         slippage: slippage.toString(),
       });
     });
-
-    if (response.action === EngineResponse.ORDER_CREATE_FAILED) {
+    console.log("response", response);
+    if (response.action === "ORDER_CREATE_FAILED") {
       return res.status(400).json({
         orderId: response.orderId,
         message: "error processing order",
       });
     }
 
-    if (response.action === EngineResponse.ORDER_CREATE_SUCCESS) {
+    if (response.action === "ORDER_CREATE_SUCCESS") {
       return res.status(200).json({
         orderId: response.orderId,
       });
@@ -98,69 +98,6 @@ app.post('/api/v1/trade/create', async (req, res) => {
     return res.status(500).send("Error processing order");
   }
 });
-//
-// app.post('/api/v1/trade/create', (req, res) => {
-//   const { userId, asset, margin, leverage, slippage, type } = req.body;
-//   if (!asset || !margin || !leverage || !slippage || !type) {
-//     return res.status(400).send("Invalid Input");
-//   }
-//   if (leverage < 1 || leverage > 100) {
-//     return res.status(404).send("Invalid Leverage Input")
-//   }
-//   const orderId = randomUUIDv7();
-//   const instruction = {
-//     data: {
-//       action: "ORDER_CREATE",
-//       orderId,
-//       userId,
-//       type,
-//       margin,
-//       leverage,
-//       asset,
-//       slippage
-//     }
-//   }
-//
-//
-//   const response: ResponseFromEngine = new Promise((resolve, reject) => {
-//     const timeout = setTimeout(() => {
-//       reject();
-//       // return res.status(404).send("Order processing timeout")
-//     }, 20000)
-//
-//     try {
-//       client.subscribe(orderId, (msg) => {
-//         const data = JSON.parse(msg) as ResponseFromEngine;
-//         client.unsubscribe(orderId);
-//         clearTimeout(timeout);
-//         resolve(data);
-//       }
-//       )
-//       queue.xAdd("orders", "*", instruction.data)
-//     } catch (err) {
-//       reject(err);
-//       clearTimeout(timeout);
-//       // return res.status(400).send("error processing order")
-//     }
-//
-//   })
-//
-//   if (response.action === EngineResponse.ORDER_CREATE_FAILED) {
-//     return res.status(400).json({
-//       orderId: response.orderId,
-//       message: "error processing order"
-//     })
-//   }
-//   if (response.action === EngineResponse.ORDER_CREATE_SUCCESS) {
-//     return res.status(200).json({
-//       orderId: response.orderId,
-//
-//     })
-//   }
-//
-//
-// })
-//
 app.post('/api/v1/trade/close', (req, res) => {
   const { orderId, userId } = req.body;
   if (!orderId) {
@@ -195,13 +132,13 @@ app.post('/api/v1/trade/close', (req, res) => {
         clearTimeout(timeout);
       }
     })
-    if (response.action === EngineResponse.ORDER_CANDLE_FAILED) {
+    if (response.action === "ORDER_CREATE_FAILED") {
       return res.status(400).json({
         message: "error processing order",
         orderId: response.orderId,
       })
     }
-    if (response.action === EngineResponse.ORDER_CANCLE_SUCCESS) {
+    if (response.action === "ORDER_CREATE_SUCCESS") {
       return res.status(200).json({
         orderId: response.orderId,
       })
