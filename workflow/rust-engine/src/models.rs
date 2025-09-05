@@ -4,6 +4,7 @@ use serde::Deserialize;
 #[serde(rename_all = "UPPERCASE")]
 pub enum Action {
     OrderCreate,
+    CreateAccount,
     CloseOrder,
     CheckBalance,
     PriceUpdate,

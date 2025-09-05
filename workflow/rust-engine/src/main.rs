@@ -1,3 +1,4 @@
+mod account;
 mod crete_order;
 mod models;
 
@@ -5,13 +6,16 @@ use std::collections::HashMap;
 use std::sync::Arc;
 
 use anyhow::Result; // ✅ don't import `Ok`, just `Result`
-use crete_order::handle_create_order;
 use models::{Action, Command};
 use redis::streams::{StreamReadOptions, StreamReadReply};
 use redis::AsyncCommands;
 use serde::Deserialize;
 use tokio::sync::Mutex;
 use tokio::time::{sleep, Duration};
+
+//custom crates
+use account::handle_create_account;
+use crete_order::handle_create_order;
 
 #[derive(Debug, Deserialize)]
 pub struct AppState {
@@ -23,12 +27,22 @@ struct PricePacket {
     buy: String,
     ask: String,
 }
+// for storing balances inMemory
+pub type Asset = String;
+pub type Amount = u64;
+#[derive(Deserialize, Debug)]
+pub struct Balances {
+    pub wallet: HashMap<Asset, Amount>,
+}
+pub type BalancesStore = Arc<Mutex<HashMap<String, Balances>>>;
 
 #[tokio::main]
 async fn main() -> Result<()> {
     let state = Arc::new(Mutex::new(AppState {
         prices: HashMap::new(),
     }));
+
+    let balances: BalancesStore = Arc::new(Mutex::new(HashMap::new()));
 
     // Connect to Redis
     let client = redis::Client::open("redis://127.0.0.1/")?;
@@ -89,6 +103,10 @@ async fn handle_command(
     conn: Arc<Mutex<redis::aio::MultiplexedConnection>>,
 ) -> redis::RedisResult<()> {
     match cmd.action {
+        Action::CreateAccount => {
+            handle_create_account(cmd, Arc::clone(&conn)).await?;
+            Ok(())
+        }
         Action::OrderCreate => {
             handle_create_order(cmd, Arc::clone(&conn)).await?;
             Ok(())
@@ -108,6 +126,6 @@ async fn handle_command(
             }
             Ok(())
         }
+        _ => Ok(()),
     }
 }
-

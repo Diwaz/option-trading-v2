@@ -18,8 +18,9 @@ interface CreateOrder {
   asset: string,
 }
 interface ResponseFromEngine {
-  orderId: string,
+  orderId?: string,
   action: String,
+  userId?: String
 
 }
 interface ResponseFromEngineBalance {
@@ -42,6 +43,47 @@ enum EngineResponse {
 app.use(express.json())
 app.use(cors())
 app.use(morgan('dev'));
+
+
+app.post('/api/v1/user/signup', async (req, res) => {
+  const { userId } = req.body;
+
+
+  try {
+    const response: ResponseFromEngine = await new Promise((resolve, reject) => {
+      const timeout = setTimeout(() => reject(new Error("Timeout")), 5000);
+
+      client.subscribe(userId, (msg) => {
+        const data = JSON.parse(msg) as ResponseFromEngine;
+        client.unsubscribe(userId);
+        clearTimeout(timeout);
+        resolve(data);
+      });
+
+      queue.xAdd("orders", "*", {
+        action: "CREATEACCOUNT",
+        user_id: userId,
+      });
+    });
+    console.log("response", response);
+    if (response.action === "ACCOUNT_FAILED") {
+      return res.status(400).json({
+        orderId: response.orderId,
+        message: "error processing order",
+      });
+    }
+
+    if (response.action === "ACCOUNT_SUCCESS") {
+      return res.status(200).json({
+        userId: response.userId,
+      });
+    }
+
+    return res.status(500).send("Unknown engine response");
+  } catch (err) {
+    return res.status(500).send("Error processing order");
+  }
+});
 
 
 app.post('/api/v1/trade/create', async (req, res) => {
@@ -98,6 +140,7 @@ app.post('/api/v1/trade/create', async (req, res) => {
     return res.status(500).send("Error processing order");
   }
 });
+
 app.post('/api/v1/trade/close', (req, res) => {
   const { orderId, userId } = req.body;
   if (!orderId) {
