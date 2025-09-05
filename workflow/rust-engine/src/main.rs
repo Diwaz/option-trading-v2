@@ -5,7 +5,7 @@ mod models;
 use std::collections::HashMap;
 use std::sync::Arc;
 
-use anyhow::Result; // ✅ don't import `Ok`, just `Result`
+use anyhow::Result;
 use models::{Action, Command};
 use redis::streams::{StreamReadOptions, StreamReadReply};
 use redis::AsyncCommands;
@@ -56,7 +56,7 @@ async fn main() -> Result<()> {
     loop {
         //  Non-blocking wait for messages
         let opts = StreamReadOptions::default().block(0).count(10);
-        let mut conn_guard = redis_conn.lock().await; // ✅ lock the shared connection
+        let mut conn_guard = redis_conn.lock().await;
         let reply: StreamReadReply = conn_guard
             .xread_options(&["orders"], &[&last_id], &opts)
             .await?;
@@ -81,8 +81,10 @@ async fn main() -> Result<()> {
                     Ok(cmd) => {
                         let state_for_update = Arc::clone(&state);
                         let redis_for_update = Arc::clone(&redis_conn);
+                        let balance_state = Arc::clone(&balances);
                         if let Err(e) =
-                            handle_command(cmd, state_for_update, redis_for_update).await
+                            handle_command(cmd, state_for_update, redis_for_update, balance_state)
+                                .await
                         {
                             eprintln!("❌ Command failed: {}", e);
                         }
@@ -101,10 +103,11 @@ async fn handle_command(
     cmd: Command,
     state: Arc<Mutex<AppState>>,
     conn: Arc<Mutex<redis::aio::MultiplexedConnection>>,
+    balance: BalancesStore,
 ) -> redis::RedisResult<()> {
     match cmd.action {
         Action::CreateAccount => {
-            handle_create_account(cmd, Arc::clone(&conn)).await?;
+            handle_create_account(cmd, Arc::clone(&conn), balance).await?;
             Ok(())
         }
         Action::OrderCreate => {
@@ -120,7 +123,7 @@ async fn handle_command(
             Ok(())
         }
         Action::PriceUpdate => {
-            let mut state_data = state.lock().await; // ✅ use .await, not unwrap
+            let mut state_data = state.lock().await;
             if let (Some(asset), Some(buy), Some(ask)) = (cmd.asset, cmd.buy, cmd.ask) {
                 state_data.prices.insert(asset, PricePacket { buy, ask });
             }
