@@ -3,6 +3,7 @@ import cors from 'cors';
 import morgan from 'morgan';
 import { createClient } from 'redis';
 import { randomUUIDv7, resolve } from 'bun';
+import { RedisSubscriber } from './redisSubscriber';
 
 const redis = createClient();
 const queue = redis.duplicate()
@@ -40,49 +41,76 @@ enum EngineResponse {
   CHECKBALANCE_SUCCESS,
   CHECKBALANCE_FAILED,
 }
+
+
 app.use(express.json())
 app.use(cors())
 app.use(morgan('dev'));
 
+const sendAndWait = async (payload) => {
+  return new Promise (async (resolve,reject)=>{
+    const timeout = setTimeout((e)=>{
+        reject();
+    },5000)
+ 
+    try{
 
+    queue.xAdd('order_stream','*',payload);
+    console.log('here');
+    while(1){
+
+      const response = await queue.xRead({
+        key:'callback_queue',
+        id:'$'
+      },{
+        BLOCK:0,
+        COUNT:1
+      })
+      // console.log('response',response[0].messages[0].message.id);
+      // if (response[0].messages[0].message.id === payload.userId){    
+      //     return resolve(response);
+      // }      
+      if(!response){
+        continue;
+      }
+      for (const streams of response){
+        for (const messages of streams.messages){
+          if (messages.message.id === payload.userId){
+            // console.log('payload',payload)
+            const responseToUser = messages.message;
+            console.log("response from http",responseToUser);
+              resolve(responseToUser);
+              
+            // console.log('response array',messages.message.id);
+          }  
+        }
+      }
+    }
+    }catch(err){
+      reject(err);
+    }
+
+
+    
+  })
+}
 app.post('/api/v1/user/signup', async (req, res) => {
   const { userId } = req.body;
 
-
-  try {
-    const response: ResponseFromEngine = await new Promise((resolve, reject) => {
-      const timeout = setTimeout(() => reject(new Error("Timeout")), 5000);
-
-      client.subscribe(userId, (msg) => {
-        const data = JSON.parse(msg) as ResponseFromEngine;
-        client.unsubscribe(userId);
-        clearTimeout(timeout);
-        resolve(data);
-      });
-
-      queue.xAdd("orders", "*", {
-        action: "CREATEACCOUNT",
-        user_id: userId,
-      });
-    });
-    console.log("response", response);
-    if (response.action === "ACCOUNT_FAILED") {
-      return res.status(400).json({
-        orderId: response.orderId,
-        message: "error processing order",
-      });
-    }
-
-    if (response.action === "ACCOUNT_SUCCESS") {
-      return res.status(200).json({
-        userId: response.userId,
-      });
-    }
-
-    return res.status(500).send("Unknown engine response");
-  } catch (err) {
-    return res.status(500).send("Error processing order");
+  if (!userId) {
+    return res.status(411).json({
+      message: "Invalid User Id"
+    })
   }
+  const payload = {
+    action: 'CREATEACCOUNT',
+    userId,
+  }
+  const response = await sendAndWait(payload);
+  res.status(200).json({
+    orderId: response
+  })
+
 });
 
 
@@ -112,8 +140,8 @@ app.post('/api/v1/trade/create', async (req, res) => {
 
       queue.xAdd("orders", "*", {
         action: "ORDERCREATE",
-        order_id: orderId,
-        user_id: userId,
+        orderId: orderId,
+        userId: userId,
         side: type,
         margin: margin.toString(),
         leverage: leverage.toString(),

@@ -45,6 +45,19 @@ pub async fn handle_create_account(
     // if let (Some())
     Ok(())
 }
+
+pub fn update_balance(balance: BalancesStore, side: String, user_id: String) {
+    if (side == "buy") {
+        //    let newBalance = balance.get(user_id);
+        // let netBalance = newBalance.wallet.get("usd");
+        // let finalBalance -= 50;
+        // let updated_wallet = HashMap::new();
+        // updated_wallet.insert("usd", finalBalance)
+        //
+    } else {
+        //smth
+    }
+}
 // fn initiateAccountBalance(userId: String){
 //
 // }
