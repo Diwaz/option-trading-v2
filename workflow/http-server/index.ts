@@ -47,53 +47,100 @@ app.use(express.json())
 app.use(cors())
 app.use(morgan('dev'));
 
-const sendAndWait = async (payload) => {
-  return new Promise (async (resolve,reject)=>{
-    const timeout = setTimeout((e)=>{
-        reject();
-    },5000)
+// const sendAndWait = async (payload) => {
+//   return new Promise (async (resolve,reject)=>{
+//     const timeout = setTimeout((e)=>{
+//         reject();
+//     },5000)
  
-    try{
+//     try{
 
-    queue.xAdd('order_stream','*',payload);
-    console.log('here');
-    while(1){
+//     queue.xAdd('order_stream','*',payload);
+//     console.log('here');
 
-      const response = await queue.xRead({
-        key:'callback_queue',
-        id:'$'
-      },{
-        BLOCK:0,
-        COUNT:1
-      })
-      // console.log('response',response[0].messages[0].message.id);
-      // if (response[0].messages[0].message.id === payload.userId){    
-      //     return resolve(response);
-      // }      
-      if(!response){
-        continue;
-      }
-      for (const streams of response){
-        for (const messages of streams.messages){
-          if (messages.message.id === payload.userId){
-            // console.log('payload',payload)
-            const responseToUser = messages.message;
-            console.log("response from http",responseToUser);
-              resolve(responseToUser);
+//     //  queue.xAdd('order_stream','*',payload);
+//     while(1){
+//       console.log("before xread");
+      
+//       const response = await queue.xRead({
+//         key:'callback_queue',
+//         id:'$'
+//       },{
+//         BLOCK:0,
+//         COUNT:1
+//       })
+//       console.log("loop here");
+      
+//       if(!response){
+//         continue;
+//       }
+
+//       for (const streams of response){
+//         for (const messages of streams.messages){
+//           if (messages.message.id === payload.userId){
+//             // console.log('payload',payload)
+
+//             const responseToUser = messages.message;
+//             console.log("response from http",responseToUser);
+//               resolve(responseToUser);
               
-            // console.log('response array',messages.message.id);
-          }  
-        }
-      }
-    }
-    }catch(err){
-      reject(err);
-    }
+//             // console.log('response array',messages.message.id);
+//           }  
+//         }
+//       }
+//       new Promise(e=>setTimeout(e,0));
+//     }
+//       console.log('pugena ')
+
+//     }catch(err){
+//       reject(err);
+//       clearTimeout(timeout);
+//     }
 
 
     
-  })
-}
+//   })
+// }
+const sendAndWait = async (payload) => {
+  return new Promise(async (resolve, reject) => {
+    const timeout = setTimeout(() => {
+      reject(new Error("Timeout waiting for response"));
+    }, 5000);
+
+    try {
+      const readPromise = (async () => {
+        while (true) {
+          const response = await queue.xReadGroup(
+            "mygroup",
+            "consumer-1",        
+            { key: "callback_queue", id: ">" },
+            { BLOCK: 0, COUNT: 1 }
+          );
+
+          if (!response) continue;
+
+          for (const streams of response) {
+            for (const messages of streams.messages) {
+              if (messages.message.id === payload.userId) {
+                await queue.xAck("callback_queue", "mygroup", messages.id);
+                clearTimeout(timeout);
+                resolve(messages.message);
+                return;
+              }
+            }
+          }
+        }
+      })();
+
+      await queue.xAdd("order_stream", "*", payload);
+      console.log("xAdd sent:", payload);
+    } catch (err) {
+      clearTimeout(timeout);
+      reject(err);
+    }
+  });
+};
+
 app.post('/api/v1/user/signup', async (req, res) => {
   const { userId } = req.body;
 
@@ -107,8 +154,14 @@ app.post('/api/v1/user/signup', async (req, res) => {
     userId,
   }
   const response = await sendAndWait(payload);
+
+  res.status(200).json(response)
+
+});
+
+app.get('/api/v1/checkHealth', async (req, res) => {
   res.status(200).json({
-    orderId: response
+    message: "ok"
   })
 
 });
