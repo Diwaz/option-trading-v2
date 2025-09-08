@@ -11,6 +11,7 @@ const client = redis.duplicate()
 await queue.connect();
 await client.connect();
 const app = express()
+const redisSubscriber = new RedisSubscriber();
 
 interface CreateOrder {
   type: "buy" | "sell",
@@ -90,6 +91,71 @@ async function sendAndWait(
     }
   });
 }
+app.get("/api/v1/trade/open", async (req, res) => {
+    console.log("inside the route")
+    const startTime = Date.now();
+    const {userId} = req.query;
+    const id = Math.random().toString();
+
+    console.log("sending message to the queue")
+    await client.xAdd("order_stream", "*", {
+        message: JSON.stringify({
+            action:"CREATEACCOUNT",
+            userId,
+            id
+        })
+    })
+
+    try {
+
+        const responseFromEngine = await redisSubscriber.waitForMessage(id);
+        // console.log('resp from server',responseFromEngine);
+        res.json({
+            message: "Order placed",
+            time: Date.now() - startTime
+        })
+    } catch(e) {
+        res.status(411).json({
+            message: "Trade not placed"
+        });
+    }
+
+});
+app.get("/api/v1/trade/create", async (req, res) => {
+    console.log("inside the route")
+    const startTime = Date.now();
+    const {userId,margin,slippage,leverage,asset,type} = req.query;
+    const id = Math.random().toString();
+
+    console.log("sending message to the queue")
+    await client.xAdd("order_stream", "*", {
+        message: JSON.stringify({
+            action:"CREATE_ORDER",
+            userId,
+            id,
+            margin,
+            slippage,
+            leverage,
+            asset,
+            type
+        })
+    })
+
+    try {
+
+        const responseFromEngine = await redisSubscriber.waitForMessage(id);
+        console.log('resp from server',responseFromEngine);
+        res.json({
+            message: "Order placed",
+            time: Date.now() - startTime
+        })
+    } catch(e) {
+        res.status(411).json({
+            message: "Trade not placed"
+        });
+    }
+
+});
 
 app.post('/api/v1/user/signup', async (req, res) => {
   const { userId } = req.body;
@@ -109,33 +175,33 @@ app.post('/api/v1/user/signup', async (req, res) => {
 
 });
 
-app.post('/api/v1/trade/create', async (req, res) => {
-  const { userId,asset,slippage,margin,leverage,type } = req.body;
+// app.post('/api/v1/trade/create', async (req, res) => {
+//   const { userId,asset,slippage,margin,leverage,type } = req.body;
 
-  if (!userId) {
-    return res.status(411).json({
-      message: "Invalid User Id"
-    })
-  }
-  if (!asset || !margin || !slippage || !leverage || !type){
-    return res.status(404).json({
-      message: "Invalid input"
-    })
-  }
-  const payload = {
-    action: 'CREATE_ORDER',
-    userId,
-    margin: margin.toString(),
-    leverage: leverage.toString(),
-    asset,
-    slippage:slippage.toString(),
-    type
-  }
-  const response = await sendAndWait(userId,payload,res);
+//   if (!userId) {
+//     return res.status(411).json({
+//       message: "Invalid User Id"
+//     })
+//   }
+//   if (!asset || !margin || !slippage || !leverage || !type){
+//     return res.status(404).json({
+//       message: "Invalid input"
+//     })
+//   }
+//   const payload = {
+//     action: 'CREATE_ORDER',
+//     userId,
+//     margin: margin.toString(),
+//     leverage: leverage.toString(),
+//     asset,
+//     slippage:slippage.toString(),
+//     type
+//   }
+//   const response = await sendAndWait(userId,payload,res);
 
-  res.status(200).json(response)
+//   res.status(200).json(response)
 
-});
+// });
 
 app.post('/api/v1/trade/close', async (req, res) => {
   const { userId,orderId } = req.body;

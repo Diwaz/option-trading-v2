@@ -68,14 +68,15 @@ const runLoop = async () => {
       BLOCK: 0,
       COUNT: 1
     }) ;
-    const payload = response[0].messages[0].message;
-    const action = response[0].messages[0].message.action;
-    // console.log(JSON.parse(response[0].messages[0].message));
+    const payload = JSON.parse(response[0].messages[0].message.message);
+    console.log(JSON.parse(response[0].messages[0].message.message).action);
+    const action = JSON.parse(response[0].messages[0].message.message).action;
+    
     switch (action) {
       case "CREATEACCOUNT":
         console.log("reached here in CREATEACCOUNT");
         // initiateUser(payload);
-        // responseToServer(payload);
+        responseToServer(payload);
         // loadSnapShot();
         console.log("openTrades",openTrades)
         console.log("openTradesArray",openTradesArray)
@@ -227,7 +228,7 @@ const initiateUser = (data: createAccount) => {
   // responseToServer(data.userId)
 }
 const createOrder = (payload: createOrder) => {
-  const {margin,leverage,slippage,asset,userId,type} = payload;
+  const {margin,leverage,slippage,asset,userId,type,id} = payload;
   
   console.log("creating order .......", !userBalance[userId]);
   if (!userBalance[userId]){
@@ -243,10 +244,12 @@ const createOrder = (payload: createOrder) => {
     slippage:Number(slippage),
     asset,
     type,
-    openingPrice:marketPrice[asset]?.ask ?? 0
+    openingPrice:marketPrice[asset]?.ask ?? 0,
+    id
   }
   updateBalanceForUser(userId,Number(margin),type)
   addTrades(userId,trade); 
+  responseToServer(trade)
 }
  const closeOrder =(payload:closeOrder)=>{
   const {userId,orderId} = payload;
@@ -255,11 +258,12 @@ const createOrder = (payload: createOrder) => {
  }
 
 const responseToServer = (payload:any) => {
-  const orderId = payload.userId;
+  const orderId = payload.id;
   console.log("orderId",orderId);
   
   queue.xAdd("callback_queue", "*", {
-    id: orderId
+    id: orderId,
+    orderId: payload.orderId
   })
   console.log("response sent back");
   
