@@ -51,16 +51,16 @@ ws.on("message", (msg) => {
   // console.log(JSON.parse(msg.toString()));
   const trade = JSON.parse(msg.toString())
   console.log("trades", trade.data);
-  updatePrice(trade.data.s, parseInt(trade.data.b), parseInt(trade.data.a));
+  updatePrice(trade.data.s, Number(trade.data.b), Number(trade.data.a));
 })
 setInterval(async () => {
 
   for (const a of marketData.price_updates) {
-    await publisher.xAdd("orders", "*", {
-      action: "PRICEUPDATE",
+    await publisher.xAdd("order_stream", "*", {
+      action: "PRICE_UPDATE",
       asset: a.asset,
-      buy: a.buy.toString(),
-      ask: a.ask.toString()
+      buy: Math.trunc(a.buy*1e4).toString(),
+      ask: Math.trunc(a.ask*1e4).toString()
     });
   }
   // publisher.publish("data", JSON.stringify(marketData))

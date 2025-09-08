@@ -47,99 +47,49 @@ app.use(express.json())
 app.use(cors())
 app.use(morgan('dev'));
 
-// const sendAndWait = async (payload) => {
-//   return new Promise (async (resolve,reject)=>{
-//     const timeout = setTimeout((e)=>{
-//         reject();
-//     },5000)
- 
-//     try{
-
-//     queue.xAdd('order_stream','*',payload);
-//     console.log('here');
-
-//     //  queue.xAdd('order_stream','*',payload);
-//     while(1){
-//       console.log("before xread");
-      
-//       const response = await queue.xRead({
-//         key:'callback_queue',
-//         id:'$'
-//       },{
-//         BLOCK:0,
-//         COUNT:1
-//       })
-//       console.log("loop here");
-      
-//       if(!response){
-//         continue;
-//       }
-
-//       for (const streams of response){
-//         for (const messages of streams.messages){
-//           if (messages.message.id === payload.userId){
-//             // console.log('payload',payload)
-
-//             const responseToUser = messages.message;
-//             console.log("response from http",responseToUser);
-//               resolve(responseToUser);
-              
-//             // console.log('response array',messages.message.id);
-//           }  
-//         }
-//       }
-//       new Promise(e=>setTimeout(e,0));
-//     }
-//       console.log('pugena ')
-
-//     }catch(err){
-//       reject(err);
-//       clearTimeout(timeout);
-//     }
-
-
-    
-//   })
-// }
-const sendAndWait = async (payload) => {
+async function sendAndWait(
+  orderId: string,
+  payload: Record<string, any>,
+  res: any
+) {
   return new Promise(async (resolve, reject) => {
     const timeout = setTimeout(() => {
-      reject(new Error("Timeout waiting for response"));
-    }, 5000);
+      reject(new Error("Timeout: No response from engine"));
+    }, 10000);
+    await queue.xAdd("order_stream", "*", payload);
 
     try {
-      const readPromise = (async () => {
-        while (true) {
-          const response = await queue.xReadGroup(
-            "mygroup",
-            "consumer-1",        
-            { key: "callback_queue", id: ">" },
-            { BLOCK: 0, COUNT: 1 }
-          );
+      let lastId = "$";
 
-          if (!response) continue;
+      while (true) {
+        const messages = await queue.xRead(
+          [{ key: "order_stream", id: lastId }],
+          { BLOCK: 0, COUNT: 1 }
+        );
 
-          for (const streams of response) {
-            for (const messages of streams.messages) {
-              if (messages.message.id === payload.userId) {
-                await queue.xAck("callback_queue", "mygroup", messages.id);
-                clearTimeout(timeout);
-                resolve(messages.message);
-                return;
-              }
+        if (!messages) continue;
+        console.log("reached here",messages);
+        
+        for (const stream of messages) {
+          for (const msg of stream.messages) {
+            lastId = msg.id;
+            console.log("response id ",msg);
+            
+            const { orderId: respOrderId, response } = msg.message;
+            if (respOrderId === orderId) {
+              clearTimeout(timeout);
+              res.json({ message: JSON.parse(response) });
+              return resolve(true);
             }
           }
         }
-      })();
-
-      await queue.xAdd("order_stream", "*", payload);
-      console.log("xAdd sent:", payload);
+      }
     } catch (err) {
       clearTimeout(timeout);
       reject(err);
     }
   });
-};
+}
 
 app.post('/api/v1/user/signup', async (req, res) => {
   const { userId } = req.body;
@@ -153,11 +103,65 @@ app.post('/api/v1/user/signup', async (req, res) => {
     action: 'CREATEACCOUNT',
     userId,
   }
-  const response = await sendAndWait(payload);
+  const response = await sendAndWait(userId,payload,res);
 
   res.status(200).json(response)
 
 });
+
+app.post('/api/v1/trade/create', async (req, res) => {
+  const { userId,asset,slippage,margin,leverage,type } = req.body;
+
+  if (!userId) {
+    return res.status(411).json({
+      message: "Invalid User Id"
+    })
+  }
+  if (!asset || !margin || !slippage || !leverage || !type){
+    return res.status(404).json({
+      message: "Invalid input"
+    })
+  }
+  const payload = {
+    action: 'CREATE_ORDER',
+    userId,
+    margin: margin.toString(),
+    leverage: leverage.toString(),
+    asset,
+    slippage:slippage.toString(),
+    type
+  }
+  const response = await sendAndWait(userId,payload,res);
+
+  res.status(200).json(response)
+
+});
+
+app.post('/api/v1/trade/close', async (req, res) => {
+  const { userId,orderId } = req.body;
+
+  if (!userId) {
+    return res.status(411).json({
+      message: "Invalid User Id"
+    })
+  }
+  if (!orderId){
+    return res.status(404).json({
+      message:"Invalid order Id"
+    })
+  }
+
+  const payload = {
+    action: 'CLOSE_ORDER',
+    userId,
+    orderId
+  }
+  const response = await sendAndWait(userId,payload,res);
+
+  res.status(200).json(response)
+
+});
+
 
 app.get('/api/v1/checkHealth', async (req, res) => {
   res.status(200).json({
@@ -166,176 +170,6 @@ app.get('/api/v1/checkHealth', async (req, res) => {
 
 });
 
-
-app.post('/api/v1/trade/create', async (req, res) => {
-  const { userId, asset, margin, leverage, slippage, type } = req.body;
-
-  if (!asset || !margin || !leverage || !slippage || !type) {
-    return res.status(400).send("Invalid Input");
-  }
-
-  if (leverage < 1 || leverage > 100) {
-    return res.status(404).send("Invalid Leverage Input");
-  }
-
-  const orderId = randomUUIDv7();
-
-  try {
-    const response: ResponseFromEngine = await new Promise((resolve, reject) => {
-      const timeout = setTimeout(() => reject(new Error("Timeout")), 5000);
-
-      client.subscribe(orderId, (msg) => {
-        const data = JSON.parse(msg) as ResponseFromEngine;
-        client.unsubscribe(orderId);
-        clearTimeout(timeout);
-        resolve(data);
-      });
-
-      queue.xAdd("orders", "*", {
-        action: "ORDERCREATE",
-        orderId: orderId,
-        userId: userId,
-        side: type,
-        margin: margin.toString(),
-        leverage: leverage.toString(),
-        asset,
-        slippage: slippage.toString(),
-      });
-    });
-    console.log("response", response);
-    if (response.action === "ORDER_CREATE_FAILED") {
-      return res.status(400).json({
-        orderId: response.orderId,
-        message: "error processing order",
-      });
-    }
-
-    if (response.action === "ORDER_CREATE_SUCCESS") {
-      return res.status(200).json({
-        orderId: response.orderId,
-      });
-    }
-
-    return res.status(500).send("Unknown engine response");
-  } catch (err) {
-    return res.status(500).send("Error processing order");
-  }
-});
-
-app.post('/api/v1/trade/close', (req, res) => {
-  const { orderId, userId } = req.body;
-  if (!orderId) {
-    return res.status(404).json({
-      message: "Invalid orderId"
-    })
-  }
-  const instruction = {
-    data: {
-      action: "CLOSEORDER",
-      userId,
-      orderId
-    }
-  }
-
-
-  try {
-    const response: ResponseFromEngine = new Promise((resolve, reject) => {
-      const timeout = setTimeout(() => {
-        reject()
-      }, 20000)
-      try {
-        client.subscribe(orderId, (msg) => {
-          const data = JSON.parse(msg) as ResponseFromEngine;
-          clearTimeout(timeout);
-          client.unsubscribe(orderId);
-          resolve(data)
-        })
-        queue.xAdd('orders', '*', instruction.data)
-      } catch (err) {
-        reject(err);
-        clearTimeout(timeout);
-      }
-    })
-    if (response.action === "ORDER_CREATE_FAILED") {
-      return res.status(400).json({
-        message: "error processing order",
-        orderId: response.orderId,
-      })
-    }
-    if (response.action === "ORDER_CREATE_SUCCESS") {
-      return res.status(200).json({
-        orderId: response.orderId,
-      })
-    }
-  }
-
-  catch (err) {
-    res.status(400).json(
-      {
-        message: err
-      }
-    )
-  }
-
-})
-
-app.get('/api/v1/balance', (req, res) => {
-  const { userId } = req.body;
-  if (!userId) {
-    return res.status(404).json({
-      message: "Unable to get User"
-    })
-  }
-  const queueId = randomUUIDv7();
-  const instruction = {
-    action: Task.CheckBalance,
-    data: {
-      action: "CHECKBALANCE",
-      userId
-    }
-  }
-
-
-  try {
-    const response: ResponseFromEngineBalance = new Promise((resolve, reject) => {
-      const timeout = setTimeout(() => {
-        reject()
-      }, 20000)
-      try {
-        client.subscribe(queueId, (msg) => {
-          const data = JSON.parse(msg) as ResponseFromEngineBalance;
-          clearTimeout(timeout);
-          client.unsubscribe(queueId);
-          resolve(data)
-        })
-        queue.xAdd('orders', '*', instruction.data)
-      } catch (err) {
-        reject(err);
-        clearTimeout(timeout);
-      }
-    })
-    if (response.action === EngineResponse.CHECKBALANCE_FAILED) {
-      return res.status(400).json({
-        message: "error processing order",
-
-      })
-    }
-    if (response.action === EngineResponse.CHECKBALANCE_SUCCESS) {
-      return res.status(200).json({
-        balance: response.balance,
-      })
-    }
-  }
-
-  catch (err) {
-    res.status(400).json(
-      {
-        message: err
-      }
-    )
-  }
-
-})
 app.listen(5555, () => {
   console.log("server started to listen");
 })
