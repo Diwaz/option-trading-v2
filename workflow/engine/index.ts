@@ -36,7 +36,7 @@ let openTradesArray: Trade[] = [];
 let openTrades: Record<string, {trades: Trade[]}> = {};
 let userBalance: Record<string, {usd_balance:number}> = {};
 const closedTrades :Record<string,{trades:closedTrade[]}>={};
-const snapShot :Record<string,any> = {};
+let snapShot :Record<string,any> = {};
 
 interface createOrder {
   action: string,
@@ -76,7 +76,10 @@ const runLoop = async () => {
         console.log("reached here in CREATEACCOUNT");
         // initiateUser(payload);
         // responseToServer(payload);
-        captureSnapShot();
+        // loadSnapShot();
+        console.log("openTrades",openTrades)
+        console.log("openTradesArray",openTradesArray)
+        console.log("userbalance",userBalance)
         break;
       case "CREATE_ORDER":
         console.log("reached here to ORDERCREATE");
@@ -301,17 +304,18 @@ const liquidationEngine = (liveTrade:Asset) => {
         }
 
       }
-    }
-    if (order.type === "sell") {
-      if (liveTrade.bid > order.openingPrice) {
-        const changePercentage = (liveTrade.bid - order.openingPrice) / order.openingPrice;
-        if (changePercentage > 90 / (order.leverage)) {
-          // close order
-          const index = openTradesArray.findIndex(i => i.orderId == order.orderId);
-          openTradesArray.splice(index, 1)
-          console.log("order closed");
+    }else {
+          if (order.type==="sell"){
+              if (liveTrade.bid > order.openingPrice) {
+                const changePercentage = (liveTrade.bid - order.openingPrice) / order.openingPrice;
+                  if (changePercentage > 90 / (order.leverage)) {
+                          // close order
+                    const index = openTradesArray.findIndex(i => i.orderId == order.orderId);
+                    openTradesArray.splice(index, 1)
+                    console.log("order closed");
         }
       }
+    }
     }
 
   })
@@ -338,4 +342,29 @@ const captureSnapShot = async ()=>{
 
   await Bun.write('./snapshot.json',JSON.stringify(snapShot));
 }
-setInterval(captureSnapShot,3000);
+
+const loadSnapShot = async ()=>{
+
+  const file = Bun.file('./snapshot.json');
+  if (!(await file.exists())){
+    console.log("File doesnot exist"); 
+    return ;
+  }
+  try {
+  const recoveredsnapShot = await file.json();
+  openTrades = recoveredsnapShot["openTrades"]
+  openTradesArray = recoveredsnapShot["openTradesArray"]
+  userBalance = recoveredsnapShot["balances"]
+
+  }catch(err){
+    console.log("error processing snapshot");
+  }
+}
+
+const loopSnapShot = async ()=>{
+  await captureSnapShot();
+  setTimeout(loopSnapShot,3000);
+}
+
+await loadSnapShot();
+loopSnapShot();
