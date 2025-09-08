@@ -23,7 +23,7 @@ interface Trade {
   margin: number,
   leverage: number,
   slippage: number,
-  asset: string
+  asset: string,
   openingPrice:number,
 }
 
@@ -66,8 +66,8 @@ const runLoop = async () => {
     }, {
       BLOCK: 0,
       COUNT: 1
-    });
-    const payload = response[0]?.messages[0].message;
+    }) ;
+    const payload = response[0].messages[0].message;
     const action = response[0].messages[0].message.action;
     // console.log(JSON.parse(response[0].messages[0].message));
     switch (action) {
@@ -112,6 +112,9 @@ export const updateBalanceForClosedOrder = (userId:string,pnl:number,liquidation
   // if (!userBalance[userId]){
   //   userBalance[userId]={usd_balance:5000};
   // }  
+  if (!userBalance[userId]) {
+    userBalance[userId] = { usd_balance: 0 };
+  }
   if(!liquidation){
     userBalance[userId].usd_balance += pnl;
   }
@@ -123,13 +126,13 @@ export const updateBalanceForUser = (
   type : "buy" | "sell",
 )=>{
 
-      let balance = userBalance[userId];
+      let balance = userBalance[userId] ?? {usd_balance:0};
       console.log("type of trade",margin/1e2);
       
       if (type === "buy"){
         // deduct user balance
         // 1 . get margin 
-        balance.usd_balance -= (margin/1e2);
+        balance.usd_balance  -= (margin/1e2);
         console.log('stock buy worth',margin);
 
       }
@@ -166,9 +169,9 @@ export const closeTrade = (userId:string,orderId:string,liquidation:boolean) => 
 
   const tradeIndex = user.trades.findIndex(i=>i.orderId === orderId);
   const tradeArrayIndex = openTradesArray.findIndex(i=>i.orderId === orderId);
-  const trade  = user.trades[tradeIndex];
-  const asset = trade?.asset;
-  const closingPrice = marketPrice[asset].bid;
+  const trade  = user.trades[tradeIndex] as Trade;
+  const asset = trade?.asset ?? "ETH";
+  const closingPrice = marketPrice[asset]?.bid ?? 0;
 
   // calculate pnl 
   // openingQty = trade.openingPrice/margin
@@ -235,7 +238,7 @@ const createOrder = (payload: createOrder) => {
     slippage:Number(slippage),
     asset,
     type,
-    openingPrice:marketPrice[asset]?.ask
+    openingPrice:marketPrice[asset]?.ask ?? 0
   }
   updateBalanceForUser(userId,Number(margin),type)
   addTrades(userId,trade); 
@@ -246,7 +249,7 @@ const createOrder = (payload: createOrder) => {
   
  }
 
-const responseToServer = (payload) => {
+const responseToServer = (payload:any) => {
   const orderId = payload.userId;
   console.log("orderId",orderId);
   
