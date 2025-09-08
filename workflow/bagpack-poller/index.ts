@@ -57,10 +57,13 @@ setInterval(async () => {
 
   for (const a of marketData.price_updates) {
     await publisher.xAdd("order_stream", "*", {
+      message: JSON.stringify({
       action: "PRICE_UPDATE",
       asset: a.asset,
       buy: Math.trunc(a.buy*1e4).toString(),
       ask: Math.trunc(a.ask*1e4).toString()
+
+      })
     });
   }
   // publisher.publish("data", JSON.stringify(marketData))

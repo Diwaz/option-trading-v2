@@ -28,7 +28,8 @@ export class RedisSubscriber {
 
       const { name, messages } = response[0];
       console.log("received message from the callback queue", messages[0].message.id);
-      this.callbacks[messages[0].message.id](messages);
+      this.callbacks[messages[0].message.id](messages[0].message);
+      // this.callback { id : resove(data)}
       delete this.callbacks[messages[0].message.id]
     }
   }

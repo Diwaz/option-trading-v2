@@ -85,6 +85,8 @@ const runLoop = async () => {
       case "CREATE_ORDER":
         console.log("reached here to ORDERCREATE");
         // createOrder(payload);
+        console.log("payload from here",payload);
+        
         createOrder(payload)
         break;
       case "CLOSE_ORDER":
@@ -228,7 +230,8 @@ const initiateUser = (data: createAccount) => {
   // responseToServer(data.userId)
 }
 const createOrder = (payload: createOrder) => {
-  const {margin,leverage,slippage,asset,userId,type,id} = payload;
+  const {margin,leverage,slippage,asset,userId,type,requestId} = payload;
+  console.log('payload',payload);
   
   console.log("creating order .......", !userBalance[userId]);
   if (!userBalance[userId]){
@@ -245,8 +248,9 @@ const createOrder = (payload: createOrder) => {
     asset,
     type,
     openingPrice:marketPrice[asset]?.ask ?? 0,
-    id
+    requestId
   }
+  console.log("trade added",trade)
   updateBalanceForUser(userId,Number(margin),type)
   addTrades(userId,trade); 
   responseToServer(trade)
@@ -254,15 +258,15 @@ const createOrder = (payload: createOrder) => {
  const closeOrder =(payload:closeOrder)=>{
   const {userId,orderId} = payload;
   closeTrade(userId,orderId,false);
-  
+   responseToServer(payload); 
  }
 
 const responseToServer = (payload:any) => {
-  const orderId = payload.id;
-  console.log("orderId",orderId);
+  const requestId = payload.requestId;
+  console.log("orderId",requestId);
   
   queue.xAdd("callback_queue", "*", {
-    id: orderId,
+    id: requestId,
     orderId: payload.orderId
   })
   console.log("response sent back");
