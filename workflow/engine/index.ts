@@ -46,7 +46,8 @@ interface createOrder {
   margin: string,
   leverage: string,
   asset: string,
-  slippage: string
+  slippage: string,
+  requestId: string
 }
 interface closeOrder {
   userId:string,
@@ -136,17 +137,19 @@ export const updateBalanceForUser = (
 )=>{
 
       let balance = userBalance[userId] ?? {usd_balance:0};
-      console.log("type of trade",margin/1e2);
-      
+      let descaledMargin= margin/1e2;
+      if (balance.usd_balance < descaledMargin){
+        throw new Error("Insufficient Amount!");
+      } 
       if (type === "buy"){
         // deduct user balance
         // 1 . get margin 
-        balance.usd_balance  -= (margin/1e2);
-        console.log('stock buy worth',margin);
+        balance.usd_balance  -= (descaledMargin);
+        console.log('stock buy worth',descaledMargin);
 
       }
       if (type === "sell"){
-        balance.usd_balance -= (margin/1e2);
+        balance.usd_balance -= (descaledMargin);
       }
 }
 
@@ -233,13 +236,10 @@ const totalTransaction = rawPnl+margin;
   console.log('final balance after closing',userBalance[userId]);
     return true;
 }
-const initiateUser = (data: createAccount) => {
-  console.log("payload userId.....", data.userId);
-  // responseToServer(data.userId)
-}
+
 const createOrder = (payload: createOrder) => {
   const {margin,leverage,slippage,asset,userId,type,requestId} = payload;
-  console.log('payload',payload);
+  // console.log('payload',payload);
   
   console.log("creating order .......", !userBalance[userId]);
   if (!userBalance[userId]){
@@ -259,13 +259,22 @@ const createOrder = (payload: createOrder) => {
     requestId
   }
   console.log("trade added",trade)
-  updateBalanceForUser(userId,Number(margin),type)
-  addTrades(userId,trade); 
-  responseToServer(trade)
+  try {
+    updateBalanceForUser(userId,Number(margin),type)
+    addTrades(userId,trade); 
+    responseToServer(trade)
+
+  }catch(err){
+    errorToServer({
+      requestId: payload.requestId,
+      err,
+    })
+  }
 }
 
  const closeOrder =(payload:closeOrder)=>{
   const {userId,orderId} = payload;
+
   try {
     closeTrade(userId,orderId,false);
 

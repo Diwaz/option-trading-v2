@@ -52,6 +52,12 @@ app.post("/api/v1/trade/create", async (req, res) => {
     console.log("inside the route")
     const startTime = Date.now();
     const {userId,margin,slippage,leverage,asset,type} = req.body;
+
+    if (!userId || !margin || !slippage || !leverage || !asset || !type){
+      res.status(404).json({
+        message:"Invalid User Input"
+      })
+    }
     const requestId = randomUUIDv7();
 
     console.log("sending message to the queue")
@@ -72,11 +78,25 @@ app.post("/api/v1/trade/create", async (req, res) => {
 
         const responseFromEngine = await redisSubscriber.waitForMessage(requestId);
         console.log('resp from server',responseFromEngine.orderId);
-        res.json({
-            message: "Order placed",
+        // res.json({
+        //     message: "Order placed",
+        //     orderId:responseFromEngine.orderId,
+        //     responseTime: Date.now() - startTime
+        // })
+
+        if (responseFromEngine.action === "FAILED"){
+        res.status(404).json({
+            message: responseFromEngine.error,
+        }) }
+        if (responseFromEngine.action === "SUCCESS"){
+            res.status(200).json({
+            message: "Order Placed",
             orderId:responseFromEngine.orderId,
             responseTime: Date.now() - startTime
         })
+
+        }
+
     } catch(e) {
         res.status(411).json({
             message: "Trade not placed"
@@ -88,6 +108,11 @@ app.post("/api/v1/trade/create", async (req, res) => {
 app.post("/api/v1/trade/close", async (req, res) => {
     const startTime = Date.now();
     const {userId,orderId} = req.body;
+    if (!orderId || !userId){
+      res.status(400).json({
+        message:"Invalid UserId or OrderId"
+      })
+    }
     const requestId = randomUUIDv7();
 
     console.log("sending message to the queue")
@@ -104,6 +129,7 @@ app.post("/api/v1/trade/close", async (req, res) => {
 
         const responseFromEngine = await redisSubscriber.waitForMessage(requestId);
         console.log('resp from server',responseFromEngine.orderId);
+
         if (responseFromEngine.action === "FAILED"){
         res.status(404).json({
             message: responseFromEngine.error,
