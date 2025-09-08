@@ -108,11 +108,14 @@ export const initBalanceForUser = (userId: string) => {
   userBalance[userId] = { usd_balance:  5000 }; // default starting balance
 };
 
-export const updateBalanceForClosedOrder = (userId:string,pnl:number) => {
+export const updateBalanceForClosedOrder = (userId:string,pnl:number,liquidation:boolean,margin:number) => {
   // if (!userBalance[userId]){
   //   userBalance[userId]={usd_balance:5000};
   // }  
-  userBalance[userId].usd_balance += pnl;
+  if(!liquidation){
+    userBalance[userId].usd_balance += pnl;
+  }
+    
 }
 export const updateBalanceForUser = (
   userId:string,
@@ -155,7 +158,7 @@ const addTrades = (userId: string , trade: Trade) =>{
 }
   
 }
-export const closeTrade = (userId:string,orderId:string) => {
+export const closeTrade = (userId:string,orderId:string,liquidation:boolean) => {
 
   const user= openTrades[userId];
 
@@ -181,6 +184,7 @@ const openPrice = trade.openingPrice / 1e4;
 const closePrice = closingPrice / 1e4;
 const margin = trade.margin / 1e2;
 const leverage = trade.leverage;
+// console.log("margin");
 
 // 2. Calculate exposure (not scaled)
 const exposure = margin * leverage;
@@ -201,7 +205,7 @@ const totalTransaction = rawPnl+margin;
   user.trades.splice(tradeIndex,1);
   openTradesArray.splice(tradeArrayIndex,1);
   console.log('after closing balance',totalTransaction)
-  updateBalanceForClosedOrder(userId,totalTransaction);
+  updateBalanceForClosedOrder(userId,totalTransaction,liquidation,margin);
   if (!closedTrades[userId]) {
     closedTrades[userId] = { trades: [] }; 
   }
@@ -238,7 +242,7 @@ const createOrder = (payload: createOrder) => {
 }
  const closeOrder =(payload:closeOrder)=>{
   const {userId,orderId} = payload;
-  closeTrade(userId,orderId);
+  closeTrade(userId,orderId,false);
   
  }
 
@@ -276,7 +280,8 @@ const liquidationEngine = (liveTrade:Asset) => {
 
 
       if (liveTrade.ask < order.openingPrice) {
-        const changePercentge = (order.openingPrice - liveTrade.ask) / order.openingPrice;
+        const changePercentge = ((order.openingPrice - liveTrade.ask) / order.openingPrice)*100;
+        // console.log('loss percentage',changePercentge);
         if (changePercentge > 90 / (order.leverage)) {
           // close order
           const index = openTradesArray.findIndex(i => i.orderId == order.orderId);
@@ -285,7 +290,7 @@ const liquidationEngine = (liveTrade:Asset) => {
           if (!userId) {
             return;
           }
-          closeTrade(userId, order.orderId);
+          closeTrade(userId, order.orderId,true);
           console.log("order closed");
 
         }
