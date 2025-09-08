@@ -87,7 +87,7 @@ const runLoop = async () => {
       case "CREATE_ORDER":
         console.log("reached here to ORDERCREATE");
         // createOrder(payload);
-        console.log("payload from here",payload);
+        // console.log("payload from here",payload);
         
         createOrder(payload)
         break;
@@ -96,7 +96,7 @@ const runLoop = async () => {
         closeOrder(payload);
         break;
       case "PRICE_UPDATE":
-        // console.log('updating price',payload);
+        console.log('updating price',payload);
         marketPrice[payload.asset]= {
           bid:parseInt(payload.buy),
           ask:parseInt(payload.ask)
@@ -164,8 +164,10 @@ const addTrades = (userId: string , trade: Trade) =>{
       }
       openTrades[userId]?.trades.push(trade);
       openTradesArray.push(trade);
+      console.log("trade added",trade);
+      
       // mapUserToTrades[userId]?.push(trade.orderId);
-      console.log('openTradesArray',openTradesArray);
+      // console.log('openTradesArray',openTradesArray);
       // console.log('mapUserToTrades',mapUserToTrades);
       return true;
 } catch(err){
@@ -258,7 +260,6 @@ const createOrder = (payload: createOrder) => {
     openingPrice:marketPrice[asset]?.ask ?? 0,
     requestId
   }
-  console.log("trade added",trade)
   try {
     updateBalanceForUser(userId,Number(margin),type)
     addTrades(userId,trade); 
@@ -384,6 +385,7 @@ const captureSnapShot = async ()=>{
   snapShot["openTrades"]= openTrades;
   snapShot["balances"]=userBalance;
   snapShot["openTradesArray"]= openTradesArray;
+  snapShot["marketPrice"] = marketPrice;
 
   await Bun.write('./snapshot.json',JSON.stringify(snapShot));
 }
@@ -400,6 +402,8 @@ const loadSnapShot = async ()=>{
   openTrades = recoveredsnapShot["openTrades"]
   openTradesArray = recoveredsnapShot["openTradesArray"]
   userBalance = recoveredsnapShot["balances"]
+  marketPrice = recoveredsnapShot["marketPrice"] ?? {}
+  
 
   }catch(err){
     console.log("error processing snapshot");
