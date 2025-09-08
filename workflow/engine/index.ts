@@ -50,7 +50,8 @@ interface createOrder {
 }
 interface closeOrder {
   userId:string,
-  orderId:string
+  orderId:string,
+  requestId:string
 }
 
 interface Asset {
@@ -177,6 +178,13 @@ export const closeTrade = (userId:string,orderId:string,liquidation:boolean) => 
 
   const tradeIndex = user.trades.findIndex(i=>i.orderId === orderId);
   const tradeArrayIndex = openTradesArray.findIndex(i=>i.orderId === orderId);
+  console.log("tradeIndex?",tradeIndex,tradeArrayIndex);
+  
+  if (tradeIndex < 0 || tradeArrayIndex < 0){
+    console.log("reached here where we dont have tradeIndex");
+    
+    throw new Error("Order Id doesnot exist");
+  }
   const trade  = user.trades[tradeIndex] as Trade;
   const asset = trade?.asset ?? "ETH";
   const closingPrice = marketPrice[asset]?.bid ?? 0;
@@ -255,19 +263,39 @@ const createOrder = (payload: createOrder) => {
   addTrades(userId,trade); 
   responseToServer(trade)
 }
+
  const closeOrder =(payload:closeOrder)=>{
   const {userId,orderId} = payload;
-  closeTrade(userId,orderId,false);
-   responseToServer(payload); 
- }
+  try {
+    closeTrade(userId,orderId,false);
 
+    // console.log("'resp from close",responseFromClose);
+    responseToServer(payload); 
+  }catch(err){
+    // console.log("close order failed",err);
+    errorToServer({
+      requestId:payload.requestId,
+      err
+    }) 
+  }
+ 
+ }
+const errorToServer = (payload:any)=>{
+  queue.xAdd("callback_queue", "*", {
+    id: payload.requestId,
+    error: payload.err.toString(),
+    action:"FAILED",
+  })
+
+}
 const responseToServer = (payload:any) => {
   const requestId = payload.requestId;
   console.log("orderId",requestId);
   
   queue.xAdd("callback_queue", "*", {
     id: requestId,
-    orderId: payload.orderId
+    orderId: payload.orderId,
+    action:"SUCCESS"
   })
   console.log("response sent back");
   

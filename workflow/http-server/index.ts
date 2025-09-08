@@ -104,11 +104,18 @@ app.post("/api/v1/trade/close", async (req, res) => {
 
         const responseFromEngine = await redisSubscriber.waitForMessage(requestId);
         console.log('resp from server',responseFromEngine.orderId);
-        res.json({
+        if (responseFromEngine.action === "FAILED"){
+        res.status(404).json({
+            message: responseFromEngine.error,
+        }) }
+        if (responseFromEngine.action === "SUCCESS"){
+            res.json({
             message: "Order cancled successfully",
             // orderId:responseFromEngine.orderId,
             responseTime: Date.now() - startTime
         })
+
+        }
     } catch(e) {
         res.status(411).json({
             message: "Trade not placed"
