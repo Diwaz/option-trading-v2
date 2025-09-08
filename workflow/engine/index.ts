@@ -36,6 +36,7 @@ let openTradesArray: Trade[] = [];
 let openTrades: Record<string, {trades: Trade[]}> = {};
 let userBalance: Record<string, {usd_balance:number}> = {};
 const closedTrades :Record<string,{trades:closedTrade[]}>={};
+const snapShot :Record<string,any> = {};
 
 interface createOrder {
   action: string,
@@ -73,8 +74,9 @@ const runLoop = async () => {
     switch (action) {
       case "CREATEACCOUNT":
         console.log("reached here in CREATEACCOUNT");
-        initiateUser(payload);
-        responseToServer(payload);
+        // initiateUser(payload);
+        // responseToServer(payload);
+        captureSnapShot();
         break;
       case "CREATE_ORDER":
         console.log("reached here to ORDERCREATE");
@@ -314,3 +316,26 @@ const liquidationEngine = (liveTrade:Asset) => {
 
   })
 }
+/*
+"snapshot" : {
+
+"openTrades": {},
+
+"openTradesArray": [],
+
+"Balances" : {},
+
+}
+ snapshot Record<string,any>
+ snapshot["openTrades"] = openTrades
+ snapshot["balances"]
+
+*/
+const captureSnapShot = async ()=>{
+  snapShot["openTrades"]= openTrades;
+  snapShot["balances"]=userBalance;
+  snapShot["openTradesArray"]= openTradesArray;
+
+  await Bun.write('./snapshot.json',JSON.stringify(snapShot));
+}
+setInterval(captureSnapShot,3000);
