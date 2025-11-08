@@ -71,7 +71,7 @@ const runLoop = async () => {
       COUNT: 1
     }) ;
     const payload = JSON.parse(response[0].messages[0].message.message);
-    console.log(JSON.parse(response[0].messages[0].message.message).action);
+    // console.log(JSON.parse(response[0].messages[0].message.message).action);
     const action = JSON.parse(response[0].messages[0].message.message).action;
     
     switch (action) {
@@ -96,7 +96,7 @@ const runLoop = async () => {
         closeOrder(payload);
         break;
       case "PRICE_UPDATE":
-        console.log('updating price',payload);
+        // console.log('updating price',payload);
         marketPrice[payload.asset]= {
           bid:parseInt(payload.buy),
           ask:parseInt(payload.ask)

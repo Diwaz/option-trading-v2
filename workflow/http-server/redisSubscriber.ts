@@ -39,6 +39,7 @@ export class RedisSubscriber {
       this.callbacks[callbackId] = resolve;
       setTimeout(() => {
         if (this.callbacks[callbackId]) {
+          // delete this.callbacks[callbackId];
           reject();
         }
       }, 5000)
