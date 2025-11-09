@@ -2,7 +2,7 @@ import { randomUUIDv7 } from "bun";
 import { Router } from "express";
 import { RedisSubscriber } from "../redisSubscriber";
 import type {RedisClientType} from 'redis';
-
+import type {ResponseFromEngine} from '../types/types';
 
 
 const redisSubscriber = new RedisSubscriber();
@@ -36,7 +36,7 @@ export const tradeRoutes = (client:RedisClientType<any>)=>{
 
     try {
 
-        const responseFromEngine = await redisSubscriber.waitForMessage(requestId);
+        const responseFromEngine = await redisSubscriber.waitForMessage(requestId) as ResponseFromEngine;
         console.log('resp from server',responseFromEngine.orderId);
         // res.json({
         //     message: "Order placed",
@@ -87,7 +87,7 @@ router.post("/close", async (req, res) => {
 
     try {
 
-        const responseFromEngine = await redisSubscriber.waitForMessage(requestId);
+        const responseFromEngine = await redisSubscriber.waitForMessage(requestId) as ResponseFromEngine;
         console.log('resp from server',responseFromEngine.orderId);
 
         if (responseFromEngine.action === "FAILED"){

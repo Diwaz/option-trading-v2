@@ -7,29 +7,16 @@ app.use(express.json());
 
 const nodemailer = require("nodemailer");
 
-// Create a test account or replace with real credentials.
 const transporter = nodemailer.createTransport({
   host: "smtp.gmail.com",
   port: 587,
-  secure: false, // true for 465, false for other ports
+  secure: false, 
   auth: {
     user: "y2kdwz@gmail.com",
     pass: "snrx yoxv xbmh hrxi ",
   },
 });
-//
-// // Wrap in an async IIFE so we can use await.
-// (async () => {
-//   const info = await transporter.sendMail({
-//     from: '"Maddison Foo Koch" <maddison53@ethereal.email>',
-//     to: "bar@example.com, baz@example.com",
-//     subject: "Hello ✔",
-//     text: "Hello world?", // plain‑text body
-//     html: "<b>Hello world?</b>", // HTML body
-//   });
-//
-//   console.log("Message sent:", info.messageId);
-// })();
+
 const sendMail = async (token: string) => {
   const info = await transporter.sendMail({
     from: '"Maddison Foo Koch" <maddison53@ethereal.email>',
