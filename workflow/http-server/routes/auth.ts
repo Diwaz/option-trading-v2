@@ -4,7 +4,10 @@ import nodemailer from 'nodemailer';
 import { otpEmailHTML } from '../helper/sendMail';
 import type { OtpWrapper } from '../types/types';
 import jwt from 'jsonwebtoken';
-import { PrismaClient } from '@prisma/client';
+import { PrismaClient } from '../generated/prisma/client';
+import { PerMinRateLimit } from '../helper/rateLimit';
+
+
 
 
 const authRoutes = Router();
@@ -34,7 +37,7 @@ const sendMail = async (email: string,htmlBody:string) => {
 }
 
 
-authRoutes.post('/initiate_login',async (req,res)=>{
+authRoutes.post('/initiate_login',PerMinRateLimit,async (req,res)=>{
     const {email} = req.body;
     if (!email){
         return res.status(400).json({
@@ -71,7 +74,7 @@ authRoutes.post('/initiate_login',async (req,res)=>{
     }) 
 })
 
-authRoutes.post('/login',(req,res)=>{
+authRoutes.post('/login',async (req,res)=>{
   const {email,otp} = req.body;
 
   if (!email || !otp){
@@ -93,7 +96,18 @@ authRoutes.post('/login',(req,res)=>{
     })
   }
 
-  const token = jwt.sign({email},process.env.JWT_SECRET ?? " ");
+   const user =  await prisma.user.findUnique({
+      where:{
+        email
+      }
+    })
+
+    if (!user){
+      return res.status(400).json({
+        error:"User Not Found!"
+      })
+    }
+  const token = jwt.sign({email:email,userId:user.id},process.env.JWT_SECRET ?? " ");
 
  res.status(200).json({
   token

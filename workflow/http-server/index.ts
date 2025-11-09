@@ -32,7 +32,7 @@ app.get('/api/v1/checkHealth', async (req, res) => {
  
 
 
-app.listen(5555, () => {
+app.listen(8848, () => {
   console.log(`server started to listen in ${process.env.ENVIRONMENT} MODE`);
 
 })

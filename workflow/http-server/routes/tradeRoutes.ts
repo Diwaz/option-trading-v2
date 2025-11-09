@@ -12,7 +12,9 @@ export const tradeRoutes = (client:RedisClientType<any>)=>{
     console.log("inside the route")
     const startTime = Date.now();
     const {margin,slippage,leverage,asset,type} = req.body;
-    const {userId} = req.user;
+    const {userId,email} = req.user;
+    console.log("userId",userId)
+    console.log("email",email)
 
     if (!userId || !margin || !slippage || !leverage || !asset || !type){
       res.status(404).json({

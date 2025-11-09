@@ -9,6 +9,7 @@ declare global {
     interface Request {
       user?:  {
         userId: string;
+        email:string;
       };
     }
   }
@@ -31,6 +32,7 @@ export const authMiddleware = (req: Request, res: Response, next: NextFunction) 
 
     if(!req.user) req.user = {}
     req.user.userId = payload.userId; 
+    req.user.email = payload.email; 
 
     next();
   } catch (err) {
