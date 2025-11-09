@@ -27,7 +27,7 @@ ws.on('open', () => {
     JSON.stringify(
       {
         "method": "SUBSCRIBE",
-        "params": ["bookTicker.SOL_USDC", "bookTicker.SOL_USDC_PERP", "bookTicker.BTC_USDC", "bookTicker.BTC_USDC_PERP"]
+        "params": ["bookTicker.SOL_USDC", "bookTicker.BTC_USDC","bookTicker.ETH_USDC"]
       }
     )
   )
@@ -66,6 +66,6 @@ setInterval(async () => {
       })
     });
   }
-  // publisher.publish("data", JSON.stringify(marketData))
+  publisher.publish("data", JSON.stringify(marketData))
 }, 100)
 

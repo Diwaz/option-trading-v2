@@ -8,7 +8,7 @@ const subscriber = redis.duplicate();
 const subscribedUsers: Set<WebSocket> = new Set();
 await subscriber.connect();
 
-const wss = new WebSocketServer({ port: 8088 })
+const wss = new WebSocketServer({ port: 8080 })
 
 subscriber.subscribe('data', (data) => {
   subscribedUsers.forEach((ws: WebSocket) => {
@@ -21,7 +21,7 @@ subscriber.subscribe('data', (data) => {
 
 
 wss.on('connection', (ws) => {
-
+  console.log("New User Added")
   subscribedUsers.add(ws)
   ws.on('close', () => {
     subscribedUsers.delete(ws)

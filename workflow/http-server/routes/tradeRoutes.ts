@@ -78,7 +78,7 @@ export const tradeRoutes = (client:RedisClientType<any>)=>{
     console.log("userId",userId)
     console.log("email",email)
 
-    if (!userId || !margin || !slippage || !leverage || !asset || !type){
+    if (!userId || !margin || !leverage || !asset || !type){
       res.status(404).json({
         message:"Invalid User Input"
       })
@@ -132,7 +132,8 @@ export const tradeRoutes = (client:RedisClientType<any>)=>{
 
 router.post("/close", async (req, res) => {
     const startTime = Date.now();
-    const {userId,orderId} = req.body;
+    const {orderId} = req.body;
+    const {userId} = req.user;
     if (!orderId || !userId){
       res.status(400).json({
         message:"Invalid UserId or OrderId"

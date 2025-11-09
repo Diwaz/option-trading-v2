@@ -49,6 +49,11 @@ interface createOrder {
   slippage: string,
   requestId: string
 }
+interface GetBalance {
+  action:string,
+  userId:string,
+  requestId:string,
+}
 interface closeOrder {
   userId:string,
   orderId:string,
@@ -75,14 +80,22 @@ const runLoop = async () => {
     const action = JSON.parse(response[0].messages[0].message.message).action;
     
     switch (action) {
-      case "CREATEACCOUNT":
-        console.log("reached here in CREATEACCOUNT");
+      case "CREATE_ACCOUNT":
+        // console.log("reached here in CREATEACCOUNT");
+        const {userId,requestId} = payload;
+        if (!userBalance[userId]){
+          initBalanceForUser(userId);
+        }
+        const resp = {
+          requestId,
+          orderId:"Successfully created"
+        }
         // initiateUser(payload);
-        responseToServer(payload);
+        responseToServer(resp);
         // loadSnapShot();
-        console.log("openTrades",openTrades)
-        console.log("openTradesArray",openTradesArray)
-        console.log("userbalance",userBalance)
+        // console.log("openTrades",openTrades)
+        // console.log("openTradesArray",openTradesArray)
+        // console.log("userbalance",userBalance)
         break;
       case "CREATE_ORDER":
         console.log("reached here to ORDERCREATE");
@@ -94,6 +107,10 @@ const runLoop = async () => {
       case "CLOSE_ORDER":
         console.log("canceling order...");
         closeOrder(payload);
+        break;
+      case "GET_BALANCE":
+        console.log("checking balance...");
+        getBalance(payload);
         break;
       case "PRICE_UPDATE":
         // console.log('updating price',payload);
@@ -175,17 +192,22 @@ const addTrades = (userId: string , trade: Trade) =>{
 }
   
 }
+
 export const closeTrade = (userId:string,orderId:string,liquidation:boolean) => {
 
   const user= openTrades[userId];
 
   if (!user) return null;
-
+  console.log("closing trade",{
+    userId,
+    orderId,
+    liquidation
+  })
   const tradeIndex = user.trades.findIndex(i=>i.orderId === orderId);
-  const tradeArrayIndex = openTradesArray.findIndex(i=>i.orderId === orderId);
-  console.log("tradeIndex?",tradeIndex,tradeArrayIndex);
+  // const tradeArrayIndex = openTradesArray.findIndex(i=>i.orderId === orderId);
+  console.log("tradeIndex?",tradeIndex);
   
-  if (tradeIndex < 0 || tradeArrayIndex < 0){
+  if (tradeIndex < 0 ){
     console.log("reached here where we dont have tradeIndex");
     
     throw new Error("Order Id doesnot exist");
@@ -227,7 +249,7 @@ const totalTransaction = rawPnl+margin;
   }
 
   user.trades.splice(tradeIndex,1);
-  openTradesArray.splice(tradeArrayIndex,1);
+  // openTradesArray.splice(tradeArrayIndex,1);
   console.log('after closing balance',totalTransaction)
   updateBalanceForClosedOrder(userId,totalTransaction,liquidation,margin);
   if (!closedTrades[userId]) {
@@ -238,7 +260,25 @@ const totalTransaction = rawPnl+margin;
   console.log('final balance after closing',userBalance[userId]);
     return true;
 }
+const getBalance= (payload:GetBalance)=> {
+  const {userId,requestId} = payload;
+  console.log("balance payload",payload)
+  if (!userBalance[userId]){
+    errorToServer({
+      requestId,
+      err:"Unable to retrive Balance"
+    }) 
+  }else{
+    const balance = userBalance[userId]
+    const payload = {
+      requestId,
+      orderId:balance.usd_balance.toString(),
+    }
+    responseToServer(payload);
+  }
 
+  
+}
 const createOrder = (payload: createOrder) => {
   const {margin,leverage,slippage,asset,userId,type,requestId} = payload;
   // console.log('payload',payload);
@@ -300,7 +340,7 @@ const errorToServer = (payload:any)=>{
 }
 const responseToServer = (payload:any) => {
   const requestId = payload.requestId;
-  console.log("orderId",requestId);
+  console.log("resp to server payload",payload);
   
   queue.xAdd("callback_queue", "*", {
     id: requestId,
