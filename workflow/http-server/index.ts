@@ -18,8 +18,8 @@ app.use(express.json())
 app.use(cors())
 app.use(morgan('dev'));
 
-// app.use(authMiddleware);
 app.use('/api/v1/',routes);
+app.use(authMiddleware);
 app.use('/api/v1/trade/',tradeRoutes(redisInstance));
 app.get('/api/v1/checkHealth', async (req, res) => {
   res.status(200).json({

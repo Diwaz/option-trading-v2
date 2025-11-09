@@ -4,10 +4,11 @@ import nodemailer from 'nodemailer';
 import { otpEmailHTML } from '../helper/sendMail';
 import type { OtpWrapper } from '../types/types';
 import jwt from 'jsonwebtoken';
+import { PrismaClient } from '@prisma/client';
 
 
 const authRoutes = Router();
-
+const prisma = new PrismaClient();
 export const otpCache = new Map<string,OtpWrapper>();
 
 
@@ -40,7 +41,7 @@ authRoutes.post('/initiate_login',async (req,res)=>{
             error:"Invalid Input"
         })
     }
-    const {otp} = await TOTP.generate(process.env.JWT_SECRET,{digits:6})
+    const {otp} = await TOTP.generate(process.env.JWT_SECRET ?? " ",{digits:6})
     console.log("otp",otp);
     const otpBody = {
       created: Date.now(),
@@ -48,11 +49,22 @@ authRoutes.post('/initiate_login',async (req,res)=>{
     }
     otpCache.set(email,otpBody);
 
+    
     if (process.env.ENVIRONMENT === 'PRODUCTION'){
     const htmlBody = otpEmailHTML(otp,email);
     sendMail(email,htmlBody)
     }
+
     console.log("mail sent")
+      try {
+      await prisma.user.create({
+        data: {
+          email
+        }
+      })
+    } catch(e){
+        console.log("User already exist")
+    }
 
     return res.status(200).json({
       success:'OTP generated and sent successfully!'
@@ -81,7 +93,7 @@ authRoutes.post('/login',(req,res)=>{
     })
   }
 
-  const token = jwt.sign({email},process.env.JWT_SECRET);
+  const token = jwt.sign({email},process.env.JWT_SECRET ?? " ");
 
  res.status(200).json({
   token

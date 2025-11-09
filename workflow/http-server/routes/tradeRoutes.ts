@@ -11,7 +11,8 @@ export const tradeRoutes = (client:RedisClientType<any>)=>{
     router.post("/create", async (req, res) => {
     console.log("inside the route")
     const startTime = Date.now();
-    const {userId,margin,slippage,leverage,asset,type} = req.body;
+    const {margin,slippage,leverage,asset,type} = req.body;
+    const {userId} = req.user;
 
     if (!userId || !margin || !slippage || !leverage || !asset || !type){
       res.status(404).json({
