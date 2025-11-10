@@ -49,6 +49,16 @@ interface createOrder {
   slippage: string,
   requestId: string
 }
+// const trade = {
+//     orderId,
+//     margin: Number(margin),
+//     leverage: Number(leverage),
+//     slippage:Number(slippage),
+//     asset,
+//     type,
+//     openingPrice:marketPrice[asset]?.ask ?? 0,
+//     requestId
+//   }
 interface GetBalance {
   action:string,
   userId:string,
@@ -75,10 +85,11 @@ const runLoop = async () => {
       BLOCK: 0,
       COUNT: 1
     }) ;
-    const payload = JSON.parse(response[0].messages[0].message.message);
-    // console.log(JSON.parse(response[0].messages[0].message.message).action);
-    const action = JSON.parse(response[0].messages[0].message.message).action;
-    
+    // const payload = JSON.parse(response[0].messages[0].message.message);
+    // const action = JSON.parse(response[0].messages[0].message.message).action;
+    const raw = response[0].messages[0].message.message;
+const payload = typeof raw === "string" ? JSON.parse(raw) : raw;
+const action = payload.action
     switch (action) {
       case "CREATE_ACCOUNT":
         // console.log("reached here in CREATEACCOUNT");
@@ -174,6 +185,7 @@ export const updateBalanceForUser = (
 const addTrades = (userId: string , trade: Trade) =>{
     try {
       if (!userId || !trade){
+        console.log("trade Cancelled")
         return false;
       }
        if (!openTrades[userId]) {
@@ -204,7 +216,9 @@ export const closeTrade = (userId:string,orderId:string,liquidation:boolean) => 
     liquidation
   })
   const tradeIndex = user.trades.findIndex(i=>i.orderId === orderId);
-  // const tradeArrayIndex = openTradesArray.findIndex(i=>i.orderId === orderId);
+  console.log("order id i want to cancle",tradeIndex)
+  console.log("total orders",user.trades)
+
   console.log("tradeIndex?",tradeIndex);
   
   if (tradeIndex < 0 ){
@@ -249,7 +263,12 @@ const totalTransaction = rawPnl+margin;
   }
 
   user.trades.splice(tradeIndex,1);
-  // openTradesArray.splice(tradeArrayIndex,1);
+
+  if (!liquidation){
+  const tradeArrayIndex = openTradesArray.findIndex(i=>i.orderId === orderId);
+    openTradesArray.splice(tradeArrayIndex,1);
+  }
+
   console.log('after closing balance',totalTransaction)
   updateBalanceForClosedOrder(userId,totalTransaction,liquidation,margin);
   if (!closedTrades[userId]) {
@@ -262,7 +281,7 @@ const totalTransaction = rawPnl+margin;
 }
 const getBalance= (payload:GetBalance)=> {
   const {userId,requestId} = payload;
-  console.log("balance payload",payload)
+  // console.log("balance payload",payload)
   if (!userBalance[userId]){
     errorToServer({
       requestId,
@@ -273,6 +292,7 @@ const getBalance= (payload:GetBalance)=> {
     const payload = {
       requestId,
       orderId:balance.usd_balance.toString(),
+      action:"GET_BALANCE"
     }
     responseToServer(payload);
   }
@@ -282,7 +302,7 @@ const getBalance= (payload:GetBalance)=> {
 const createOrder = (payload: createOrder) => {
   const {margin,leverage,slippage,asset,userId,type,requestId} = payload;
   // console.log('payload',payload);
-  
+  console.log("received this asset",asset) 
   console.log("creating order .......", !userBalance[userId]);
   if (!userBalance[userId]){
     initBalanceForUser(userId);
@@ -290,16 +310,26 @@ const createOrder = (payload: createOrder) => {
 
   
   const orderId = randomUUIDv7();
-  const trade = {
-    orderId,
-    margin: Number(margin),
-    leverage: Number(leverage),
-    slippage:Number(slippage),
-    asset,
-    type,
-    openingPrice:marketPrice[asset]?.ask ?? 0,
-    requestId
-  }
+  // const trade = {
+  //   orderId,
+  //   margin: Number(margin),
+  //   leverage: Number(leverage),
+  //   slippage:Number(slippage),
+  //   type,
+  //   asset,
+  //   openingPrice:marketPrice[asset]?.ask ?? 0,
+  //   requestId
+  // }
+const trade = {
+  orderId,
+  margin: Number(margin) || 0,
+  leverage: Number(leverage) || 0,
+  slippage: Number(slippage) || 0,
+  asset,
+  type,
+  openingPrice: marketPrice[asset]?.ask ?? 0,
+  requestId
+}
   try {
     updateBalanceForUser(userId,Number(margin),type)
     addTrades(userId,trade); 
@@ -340,7 +370,11 @@ const errorToServer = (payload:any)=>{
 }
 const responseToServer = (payload:any) => {
   const requestId = payload.requestId;
-  console.log("resp to server payload",payload);
+  // console.log("payload.action",payload.action)
+  if (payload.action != "GET_BALANCE"){
+
+    console.log("resp to server payload",payload);
+  }
   
   queue.xAdd("callback_queue", "*", {
     id: requestId,
