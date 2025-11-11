@@ -33,6 +33,7 @@ export interface ResponseFromEngine {
   action: String,
   userId?: String,
   error?:String,
+  payload?:string,
 
 }
  export interface OtpWrapper {

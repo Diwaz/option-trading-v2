@@ -1,5 +1,5 @@
 import { randomUUIDv7 } from "bun";
-import { Router } from "express";
+import { Router, type Request } from "express";
 import { RedisSubscriber } from "../redisSubscriber";
 import type {RedisClientType} from 'redis';
 import type {ResponseFromEngine} from '../types/types';
@@ -212,6 +212,49 @@ router.post("/balance", async (req, res) => {
         if (responseFromEngine.action === "SUCCESS"){
             res.json({
             message: responseFromEngine.orderId,
+            responseTime: Date.now() - startTime
+        })
+
+        }
+    } catch(e) {
+        res.status(411).json({
+            message: "Error Retriving Message"
+        });
+    }
+
+});
+
+router.get("/open", async (req, res) => {
+    const startTime = Date.now();
+    const {userId} = req.user;
+    if ( !userId){
+      res.status(400).json({
+        message:"Invalid UserId"
+      })
+    }
+    const requestId = randomUUIDv7();
+
+    console.log("sending message to the queue")
+    await client.xAdd("order_stream", "*", {
+        message: JSON.stringify({
+            action:"GET_OPEN_ORDERS",
+            userId,
+            requestId,
+        })
+    })
+
+    try {
+
+        const responseFromEngine = await redisSubscriber.waitForMessage(requestId) as ResponseFromEngine;
+        // console.log('resp from server',responseFromEngine.orderId);
+
+        if (responseFromEngine.action === "FAILED"){
+        res.status(404).json({
+            message: responseFromEngine.error,
+        }) }
+        if (responseFromEngine.action === "SUCCESS"){
+            res.json({
+            message: JSON.parse(responseFromEngine.payload),
             responseTime: Date.now() - startTime
         })
 
