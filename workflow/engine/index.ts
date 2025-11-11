@@ -223,9 +223,15 @@ const addTrades = (userId: string , trade: Trade) =>{
 const getOpenOrders=(payload:fetchOrder)=>{
   const userId = payload.userId;
   const trades = openTrades[userId]?.trades;
+  const convertedTrades = trades?.map(t => ({
+  ...t,
+  openingPrice: t.openingPrice / 10000,
+  margin: t.margin / 100,
+}));
+
   const data = {
     requestId:payload.requestId,
-    response:trades 
+    response:convertedTrades 
   }
   responseToServerFlexible(data)
   console.log(`open trade for user ${userId}:`,trades)
