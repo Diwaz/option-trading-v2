@@ -27,7 +27,7 @@ ws.on('open', () => {
     JSON.stringify(
       {
         "method": "SUBSCRIBE",
-        "params": ["bookTicker.SOL_USDC", "bookTicker.BTC_USDC","bookTicker.ETH_USDC"]
+        "params": ["bookTicker.SOL_USDC", "bookTicker.BTC_USDC", "bookTicker.ETH_USDC"]
       }
     )
   )
@@ -58,10 +58,10 @@ setInterval(async () => {
   for (const a of marketData.price_updates) {
     await publisher.xAdd("order_stream", "*", {
       message: JSON.stringify({
-      action: "PRICE_UPDATE",
-      asset: a.asset,
-      buy: Math.trunc(a.buy*1e4).toString(),
-      ask: Math.trunc(a.ask*1e4).toString()
+        action: "PRICE_UPDATE",
+        asset: a.asset,
+        buy: Math.trunc(a.buy * 1e4).toString(),
+        ask: Math.trunc(a.ask * 1e4).toString()
 
       })
     });

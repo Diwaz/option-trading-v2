@@ -1,5 +1,6 @@
 import { randomUUIDv7 } from "bun";
 import { createClient } from "redis";
+import type { ParsePayload } from "zod/v4/core";
 
 
 
@@ -37,6 +38,7 @@ let openTrades: Record<string, {trades: Trade[]}> = {};
 let userBalance: Record<string, {usd_balance:number}> = {};
 const closedTrades :Record<string,{trades:closedTrade[]}>={};
 let snapShot :Record<string,any> = {};
+const LiquidatedOrders = new Map<string,string>();
 
 interface createOrder {
   action: string,
@@ -48,6 +50,12 @@ interface createOrder {
   asset: string,
   slippage: string,
   requestId: string
+}
+interface fetchOrder {
+  action:string;
+  userId:string;
+  orderId:string;
+  requestId:string;
 }
 // const trade = {
 //     orderId,
@@ -114,6 +122,13 @@ const action = payload.action
         // console.log("payload from here",payload);
         
         createOrder(payload)
+        break;
+      case "GET_OPEN_ORDERS":
+        console.log("reached here to fetch open orders");
+        // createOrder(payload);
+        // console.log("payload from here",payload);
+        getOpenOrders(payload);
+        // createOrder(payload)
         break;
       case "CLOSE_ORDER":
         console.log("canceling order...");
@@ -194,6 +209,7 @@ const addTrades = (userId: string , trade: Trade) =>{
       openTrades[userId]?.trades.push(trade);
       openTradesArray.push(trade);
       console.log("trade added",trade);
+      console.log("open trades from create trade",openTrades);
       
       // mapUserToTrades[userId]?.push(trade.orderId);
       // console.log('openTradesArray',openTradesArray);
@@ -204,7 +220,17 @@ const addTrades = (userId: string , trade: Trade) =>{
 }
   
 }
-
+const getOpenOrders=(payload:fetchOrder)=>{
+  const userId = payload.userId;
+  const trades = openTrades[userId]?.trades;
+  const data = {
+    requestId:payload.requestId,
+    response:trades 
+  }
+  responseToServerFlexible(data)
+  console.log(`open trade for user ${userId}:`,trades)
+    // console.log("open trades ALLLLL",openTrades)
+}
 export const closeTrade = (userId:string,orderId:string,liquidation:boolean) => {
 
   const user= openTrades[userId];
@@ -265,8 +291,10 @@ const totalTransaction = rawPnl+margin;
   user.trades.splice(tradeIndex,1);
 
   if (!liquidation){
+
   const tradeArrayIndex = openTradesArray.findIndex(i=>i.orderId === orderId);
     openTradesArray.splice(tradeArrayIndex,1);
+
   }
 
   console.log('after closing balance',totalTransaction)
@@ -299,8 +327,10 @@ const getBalance= (payload:GetBalance)=> {
 
   
 }
+
 const createOrder = (payload: createOrder) => {
   const {margin,leverage,slippage,asset,userId,type,requestId} = payload;
+
   // console.log('payload',payload);
   console.log("received this asset",asset) 
   console.log("creating order .......", !userBalance[userId]);
@@ -330,6 +360,7 @@ const trade = {
   openingPrice: marketPrice[asset]?.ask ?? 0,
   requestId
 }
+console.log("traded ADDEDEDDE",trade)
   try {
     updateBalanceForUser(userId,Number(margin),type)
     addTrades(userId,trade); 
@@ -342,15 +373,31 @@ const trade = {
     })
   }
 }
+const isLiquidated = (orderId:string)=>{
+    if (LiquidatedOrders.has(orderId)){
+      return true
+    }
+    return false;
+}
 
  const closeOrder =(payload:closeOrder)=>{
   const {userId,orderId} = payload;
 
   try {
+    if (isLiquidated(orderId)){
+
+      responseLiquidatedOrders({
+          requestId:payload.requestId,
+          orderId
+      })
+    }else{
+
     closeTrade(userId,orderId,false);
 
     // console.log("'resp from close",responseFromClose);
     responseToServer(payload); 
+    }
+
   }catch(err){
     // console.log("close order failed",err);
     errorToServer({
@@ -368,6 +415,17 @@ const errorToServer = (payload:any)=>{
   })
 
 }
+const responseLiquidatedOrders = (payload:any) => {
+  const requestId = payload.requestId;
+   
+  queue.xAdd("callback_queue", "*", {
+    id: requestId,
+    orderId: payload.orderId,
+    message:"Order Already Liquidated!",
+    action:"LIQUIDATED"
+  })
+ console.log("Order Liquidated Detected & Sent") 
+}
 const responseToServer = (payload:any) => {
   const requestId = payload.requestId;
   // console.log("payload.action",payload.action)
@@ -379,6 +437,19 @@ const responseToServer = (payload:any) => {
   queue.xAdd("callback_queue", "*", {
     id: requestId,
     orderId: payload.orderId,
+    action:"SUCCESS"
+  })
+  console.log("response sent back");
+  
+}
+const responseToServerFlexible = (payload:any) => {
+  const requestId = payload.requestId;
+  // console.log("payload.action",payload.action)
+  
+  console.log("before crashing",JSON.stringify(payload.response)) 
+  queue.xAdd("callback_queue", "*", {
+    id: requestId,
+    payload: JSON.stringify(payload.response),
     action:"SUCCESS"
   })
   console.log("response sent back");
@@ -419,6 +490,9 @@ const liquidationEngine = (liveTrade:Asset) => {
             return;
           }
           closeTrade(userId, order.orderId,true);
+          const time = Date.now() 
+          LiquidatedOrders.set(order.orderId,time.toString());
+
           console.log("order closed");
 
         }
@@ -432,6 +506,15 @@ const liquidationEngine = (liveTrade:Asset) => {
                           // close order
                     const index = openTradesArray.findIndex(i => i.orderId == order.orderId);
                     openTradesArray.splice(index, 1)
+                    const userId: string | null = mapOrderIdToUserId(order.orderId);
+                      if (!userId) {
+                         return;
+                        }
+                    closeTrade(userId, order.orderId,true);
+                    const time = Date.now() 
+                   LiquidatedOrders.set(order.orderId,time.toString());
+
+
                     console.log("order closed");
         }
       }
