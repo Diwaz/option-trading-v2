@@ -166,6 +166,12 @@ router.post("/close", async (req, res) => {
             // orderId:responseFromEngine.orderId,
             responseTime: Date.now() - startTime
         })
+        }
+        if (responseFromEngine.action === "LIQUIDATED"){
+            res.json({
+            message: "Order Already Liquidated",
+            responseTime: Date.now() - startTime
+        })
 
         }
     } catch(e) {
