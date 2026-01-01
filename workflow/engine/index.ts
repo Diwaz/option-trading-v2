@@ -81,7 +81,9 @@ interface closeOrder {
 interface Asset {
   bid:number,
   ask:number
+  asset?:string
 }
+
 let marketPrice :Record<string,Asset>= {};
 const runLoop = async () => {
   while (1) {
@@ -146,7 +148,8 @@ const action = payload.action
         }
         liquidationEngine({
           bid:parseInt(payload.buy),
-          ask:parseInt(payload.ask)
+          ask:parseInt(payload.ask),
+          asset:(payload.asset)
         })
         // console.log(marketPrice);
         break;
@@ -223,18 +226,27 @@ const addTrades = (userId: string , trade: Trade) =>{
 const getOpenOrders=(payload:fetchOrder)=>{
   const userId = payload.userId;
   const trades = openTrades[userId]?.trades;
-  const convertedTrades = trades?.map(t => ({
-  ...t,
-  openingPrice: t.openingPrice / 10000,
-  margin: t.margin / 100,
-}));
+  let convertedTrades = trades?.map(t => ({
+    ...t,
+    openingPrice: t.openingPrice / 10000,
+    margin: t.margin / 100,
+  }));
 
-  const data = {
-    requestId:payload.requestId,
-    response:convertedTrades 
+let data = {
+  requestId:payload.requestId,
+  response:convertedTrades 
+}
+
+  if (!trades){
+ data = {
+  requestId:payload.requestId,
+  response:[]
+}
   }
+
+console.log("before sending open trades data :",data)
   responseToServerFlexible(data)
-  console.log(`open trade for user ${userId}:`,trades)
+  console.log(`open trade for user ${userId}:`,data.response)
     // console.log("open trades ALLLLL",openTrades)
 }
 export const closeTrade = (userId:string,orderId:string,liquidation:boolean) => {
@@ -317,10 +329,13 @@ const getBalance= (payload:GetBalance)=> {
   const {userId,requestId} = payload;
   // console.log("balance payload",payload)
   if (!userBalance[userId]){
-    errorToServer({
-      requestId,
-      err:"Unable to retrive Balance"
-    }) 
+
+    initBalanceForUser(userId);
+    // console.log("no balance found for userid:",userId)
+    // errorToServer({
+    //   requestId,
+    //   err:"Unable to retrive Balance"
+    // }) 
   }else{
     const balance = userBalance[userId]
     const payload = {
@@ -329,9 +344,7 @@ const getBalance= (payload:GetBalance)=> {
       action:"GET_BALANCE"
     }
     responseToServer(payload);
-  }
-
-  
+  } 
 }
 
 const createOrder = (payload: createOrder) => {
@@ -452,7 +465,7 @@ const responseToServerFlexible = (payload:any) => {
   const requestId = payload.requestId;
   // console.log("payload.action",payload.action)
   
-  console.log("before crashing",JSON.stringify(payload.response)) 
+  console.log("before crashing",JSON.stringify(payload)) 
   queue.xAdd("callback_queue", "*", {
     id: requestId,
     payload: JSON.stringify(payload.response),
@@ -472,7 +485,7 @@ export const mapOrderIdToUserId = (orderId:string):string | null => {
 }
 const liquidationEngine = (liveTrade:Asset) => {
   openTradesArray.map((order) => {
-    if (order.leverage > 1 && order.type === "buy") {
+    if (order.leverage > 1 && order.type === "buy" && order.asset === liveTrade.asset) {
       // const rawPnl = liveTrade.sellPrice - order.openPrice;
       // const exposer = order?.margin * order?.leverage;
       // const qty = order?.openPrice / exposer;
@@ -483,10 +496,15 @@ const liquidationEngine = (liveTrade:Asset) => {
       // if threshold > 0.9*(%loss*100) then close order
       // const threshold = 90/leverage;
 
+     
 
       if (liveTrade.ask < order.openingPrice) {
         const changePercentge = ((order.openingPrice - liveTrade.ask) / order.openingPrice)*100;
-        // console.log('loss percentage',changePercentge);
+        console.log("order openingPrice",order.openingPrice)
+
+        console.log("liveTrade ask Price",liveTrade.ask)
+
+        console.log('loss percentage',changePercentge);
         if (changePercentge > 90 / (order.leverage)) {
           // close order
           const index = openTradesArray.findIndex(i => i.orderId == order.orderId);
@@ -504,8 +522,9 @@ const liquidationEngine = (liveTrade:Asset) => {
         }
 
       }
+     
     }else {
-          if (order.type==="sell"){
+          if (order.type==="sell" && order.asset === liveTrade.asset ){
               if (liveTrade.bid > order.openingPrice) {
                 const changePercentage = (liveTrade.bid - order.openingPrice) / order.openingPrice;
                   if (changePercentage > 90 / (order.leverage)) {
