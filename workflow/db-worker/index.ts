@@ -80,6 +80,7 @@ interface closedOrder {
 
 async function saveToDB(data:closedOrder) {
 const trade:closedOrder = JSON.parse(data)
+console.log("type of",typeof(trade.openingPrice))
 console.log("parsed data",trade)
 try {
 await Prisma.trade.create({

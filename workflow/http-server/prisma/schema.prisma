@@ -21,11 +21,15 @@ model User {
 
 }
 
+
 model Trade {
   tradeId String @default(uuid()) @id
   symbol String 
-  buyPrice String
-  pnl Int
+  side String
+  buyPrice Int
+  pnl Float
+  leverage Int
+  margin Float
   sellPrice Int
   userId String
   user User @relation(fields: [userId], references: [id])

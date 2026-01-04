@@ -222,7 +222,31 @@ router.post("/balance", async (req, res) => {
     }
 
 });
+router.get("/closed-orders",async (req,res)=>{
+    const {userId} = req.user ;
+    if (!userId){
+   return     res.status(400).json({
+                message:"Invalid User"
+        })
+    }
+    try {
+    const closedOrders = await prisma.trade.findMany({
+        where :{
+            userId
+        }
+    })
+        return res.status(200).json({
+    closedOrders
+})
+    
+    }catch(err){
+        console.log("error fetching closed orders",err)
+        return res.status(400).json({
+            message:"Something Went Wrong , Please Try again"
+        })
+    }
 
+})
 router.get("/open", async (req, res) => {
     const startTime = Date.now();
     const {userId} = req.user;
