@@ -27,9 +27,9 @@ const transporter = nodemailer.createTransport({
 
 const sendMail = async (email: string,htmlBody:string) => {
   const info = await transporter.sendMail({
-    from: '"100xTrade" <y2kdwz@gmail.com>',
+    from: '"Flux Trade" <y2kdwz@gmail.com>',
     to: email,
-    subject: "Login OTP for 100xTrade",
+    subject: "Login OTP for FluxTrade",
     html: htmlBody, // HTML body
   });
 

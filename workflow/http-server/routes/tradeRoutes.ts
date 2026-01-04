@@ -152,7 +152,6 @@ router.post("/close", async (req, res) => {
     })
 
     try {
-
         const responseFromEngine = await redisSubscriber.waitForMessage(requestId) as ResponseFromEngine;
         console.log('resp from server',responseFromEngine.orderId);
 

@@ -28,6 +28,8 @@ interface Trade {
   openingPrice:number,
 }
 
+
+
 interface closedTrade extends Trade  {
   closePrice:number,
   pnl: number
@@ -254,14 +256,14 @@ export const closeTrade = (userId:string,orderId:string,liquidation:boolean) => 
   const user= openTrades[userId];
 
   if (!user) return null;
-  console.log("closing trade",{
-    userId,
-    orderId,
-    liquidation
-  })
+  // console.log("closing trade",{
+  //   userId,
+  //   orderId,
+  //   liquidation
+  // })
   const tradeIndex = user.trades.findIndex(i=>i.orderId === orderId);
   console.log("order id i want to cancle",tradeIndex)
-  console.log("total orders",user.trades)
+  // console.log("total orders",user.trades)
 
   console.log("tradeIndex?",tradeIndex);
   
@@ -271,8 +273,9 @@ export const closeTrade = (userId:string,orderId:string,liquidation:boolean) => 
     throw new Error("Order Id doesnot exist");
   }
   const trade  = user.trades[tradeIndex] as Trade;
-  const asset = trade?.asset ?? "ETH";
-  const closingPrice = marketPrice[asset]?.bid ?? 0;
+  const asset = trade?.asset ?? "ETH_USDC";
+  const closingPrice = trade.type === "buy" ? marketPrice[asset]?.ask  : marketPrice[asset]?.bid; 
+  // const closingPrice = marketPrice[asset]?.bid ?? 0;
 
   // calculate pnl 
   // openingQty = trade.openingPrice/margin
@@ -285,7 +288,7 @@ export const closeTrade = (userId:string,orderId:string,liquidation:boolean) => 
   // const netPnl= rawPnl * qty;
   // 1. Convert back to real numbers
 const openPrice = trade.openingPrice / 1e4;
-const closePrice = closingPrice / 1e4;
+const closePrice = closingPrice! / 1e4;
 const margin = trade.margin / 1e2;
 const leverage = trade.leverage;
 // console.log("margin");
@@ -297,14 +300,35 @@ const exposure = margin * leverage;
 const qty = exposure / openPrice; // how many units of asset bought
 
 // 4. Calculate PnL
-const rawPnl = (closePrice - openPrice) * qty;
+let rawPnl = 0;
+if (trade.type === "buy") {
+
+   rawPnl = (closePrice - openPrice) * qty;
+}else{
+  
+   rawPnl = (openPrice - closePrice) * qty;
+}
+
 const totalTransaction = rawPnl+margin;
 
   const closedTrade : closedTrade = {
     ...trade,
-    closePrice:closingPrice,
+    closePrice:closingPrice ?? 0,
     pnl:rawPnl,
   }
+
+  const payload  = {
+    userId,
+    orderId:trade.orderId,
+    type: trade.type,
+    margin: trade.margin,
+    leverage: trade.leverage,
+    asset: trade.asset,
+    openingPrice: trade.openingPrice,
+    closePrice:closingPrice,
+    pnl: rawPnl
+  }
+  responseClosedOrder(payload);
 
   user.trades.splice(tradeIndex,1);
 
@@ -321,10 +345,11 @@ const totalTransaction = rawPnl+margin;
     closedTrades[userId] = { trades: [] }; 
   }
     closedTrades[userId]?.trades.push(closedTrade);
-  console.log('closing trade',closedTrade);
-  console.log('final balance after closing',userBalance[userId]);
+  // console.log('closing trade',closedTrade);
+  // console.log('final balance after closing',userBalance[userId]);
     return true;
 }
+
 const getBalance= (payload:GetBalance)=> {
   const {userId,requestId} = payload;
   // console.log("balance payload",payload)
@@ -445,13 +470,14 @@ const responseLiquidatedOrders = (payload:any) => {
   })
  console.log("Order Liquidated Detected & Sent") 
 }
+
 const responseToServer = (payload:any) => {
   const requestId = payload.requestId;
   // console.log("payload.action",payload.action)
-  if (payload.action != "GET_BALANCE"){
+  // if (payload.action != "GET_BALANCE"){
 
-    console.log("resp to server payload",payload);
-  }
+  //   console.log("resp to server payload",payload);
+  // }
   
   queue.xAdd("callback_queue", "*", {
     id: requestId,
@@ -461,6 +487,29 @@ const responseToServer = (payload:any) => {
   console.log("response sent back");
   
 }
+
+
+const responseClosedOrder = (payload:any)=> {
+  const requestId = payload.requestId;
+  const closedOrder = {
+id:requestId,
+    action:"CLOSED_ORDER",
+    userId:payload.userId,
+    orderId:payload.orderId,
+    type: payload.type,
+    margin: payload.margin,
+    leverage: payload.leverage,
+    asset: payload.asset,
+    openingPrice: payload.openingPrice,
+    closePrice:payload.closePrice,
+    pnl: payload.pnl
+  }
+  queue.xAdd("worker-stream","*",{
+  data:JSON.stringify(closedOrder)    
+  })
+  console.log("closed order response sent back")
+}
+
 const responseToServerFlexible = (payload:any) => {
   const requestId = payload.requestId;
   // console.log("payload.action",payload.action)
@@ -500,11 +549,11 @@ const liquidationEngine = (liveTrade:Asset) => {
 
       if (liveTrade.ask < order.openingPrice) {
         const changePercentge = ((order.openingPrice - liveTrade.ask) / order.openingPrice)*100;
-        console.log("order openingPrice",order.openingPrice)
+        // console.log("order openingPrice",order.openingPrice)
 
-        console.log("liveTrade ask Price",liveTrade.ask)
+        // console.log("liveTrade ask Price",liveTrade.ask)
 
-        console.log('loss percentage',changePercentge);
+        // console.log('loss percentage',changePercentge);
         if (changePercentge > 90 / (order.leverage)) {
           // close order
           const index = openTradesArray.findIndex(i => i.orderId == order.orderId);

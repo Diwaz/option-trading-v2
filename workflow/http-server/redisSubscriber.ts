@@ -21,7 +21,7 @@ export class RedisSubscriber {
         BLOCK: 0,
         COUNT: 1
       })
-
+        
       if (!response) {
         continue;
       }
