@@ -1,14 +1,38 @@
 import { createClient } from "redis"
 import { Prisma } from "./prisma"
+import nodemailer from "nodemailer";
+import { closeTradeEmailHTML } from "./emailTemplate";
 
 
 const redis = createClient();
 const client = redis.duplicate();
 await client.connect();
 
-
 const GROUP = "worker-group";
 const CONSUMER = "consumer-1";
+
+const mailCache = new Map<string,boolean>();
+
+const transporter = nodemailer.createTransport({
+  host: "smtp.gmail.com",
+  port: 587,
+  secure: false, 
+  auth: {
+    user: "y2kdwz@gmail.com",
+    pass: process.env.SMTP_PASS,
+  },
+});
+
+const sendMail = async (email: string,htmlBody:string) => {
+  const info = await transporter.sendMail({
+    from: '"Flux Trade" <y2kdwz@gmail.com>',
+    to: email,
+    subject: "ORDER CLOSE NOTICE",
+    html: htmlBody, // HTML body
+  });
+
+
+}
 
 while (true) {
   const response = await client.xReadGroup(
@@ -32,6 +56,7 @@ while (true) {
       await saveToDB(data.data);
 
       await client.xAck("worker-stream", GROUP, id);
+      
       console.log("ACKD")
     }
   }
@@ -52,6 +77,7 @@ interface closedOrder {
 }
 
 
+
 async function saveToDB(data:closedOrder) {
 const trade:closedOrder = JSON.parse(data)
 console.log("parsed data",trade)
@@ -69,6 +95,25 @@ await Prisma.trade.create({
         margin:trade.margin
     }
 })
+
+const userEmail = await Prisma.user.findUnique({
+    where: {
+        id: trade.userId
+    },
+    select : {
+        email:true
+    }
+});
+if (process.env.ENVIRONMENT === "DEVELOPMENT"){
+    if (!mailCache.has(userEmail?.email as string)) {
+        mailCache.set(userEmail?.email as string,true)
+        const pnlColor = trade.pnl > 0 ? "green" : "red";
+        const htmlBody = closeTradeEmailHTML(trade.asset,(trade.pnl.toFixed(2)),trade.type,(trade.openingPrice/1e4).toString(),(trade.margin/1e4).toString(),trade.type.toUpperCase(),trade.leverage.toString(),(trade.closePrice/1e4).toString(),trade.orderId,pnlColor);
+        await sendMail(userEmail?.email as string,htmlBody);
+    }
+
+}
+
 } catch(Error) {
     console.log("Failed to Saving to DB")
     throw(Error)
