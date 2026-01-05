@@ -326,7 +326,8 @@ const totalTransaction = rawPnl+margin;
     asset: trade.asset,
     openingPrice: trade.openingPrice,
     closePrice:closingPrice,
-    pnl: rawPnl
+    pnl: rawPnl,
+    closedTime: new Date().toLocaleString(),
   }
   responseClosedOrder(payload);
 
@@ -502,7 +503,8 @@ id:requestId,
     asset: payload.asset,
     openingPrice: payload.openingPrice,
     closePrice:payload.closePrice,
-    pnl: payload.pnl
+    pnl: payload.pnl,
+    closedTime:payload.closedTime
   }
   queue.xAdd("worker-stream","*",{
   data:JSON.stringify(closedOrder)    

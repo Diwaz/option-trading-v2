@@ -14,22 +14,21 @@ datasource db {
 }
 
 model User {
-  id String @default(uuid()) @id
-  email String @unique
-  trades Trade[] 
-
+  id     String  @id @default(uuid())
+  email  String  @unique
+  trades Trade[]
 }
 
 model Trade {
-  tradeId String @default(uuid()) @id
-  symbol String 
-  side String
-  buyPrice Int
-  pnl Float
-  leverage Int
-  margin Float
-  sellPrice Int
-  userId String
-  user User @relation(fields: [userId], references: [id])
-
+  tradeId    String @id @default(uuid())
+  symbol     String
+  side       String
+  buyPrice   Int
+  pnl        Float
+  leverage   Int
+  margin     Float
+  sellPrice  Int
+  userId     String
+  closedTime String
+  user       User   @relation(fields: [userId], references: [id])
 }

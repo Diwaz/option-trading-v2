@@ -57,6 +57,7 @@ while (true) {
 
       await client.xAck("worker-stream", GROUP, id);
       
+      
       console.log("ACKD")
     }
   }
@@ -74,6 +75,7 @@ interface closedOrder {
     openingPrice:number
     closePrice:number,
     pnl:number
+    closedTime:string,
 }
 
 
@@ -93,7 +95,9 @@ await Prisma.trade.create({
         sellPrice:trade.closePrice,
         userId:trade.userId,
         leverage:trade.leverage,
-        margin:trade.margin
+        margin:trade.margin,
+        closedTime:trade.closedTime
+
     }
 })
 

@@ -44,7 +44,16 @@ export const tradeRoutes = (client:RedisClientType<any>)=>{
             userId:id,
             requestId,
         })
-    })
+    },
+    {
+TRIM: {
+      strategy: "MAXLEN",
+      strategyModifier: "~",
+      threshold: 100_000
+    }
+    }
+
+)
 
     try {
 
@@ -97,7 +106,17 @@ export const tradeRoutes = (client:RedisClientType<any>)=>{
             asset,
             type
         })
-    })
+    },
+    {
+TRIM: {
+      strategy: "MAXLEN",
+      strategyModifier: "~",
+      threshold: 100_000
+    }
+    }
+
+
+)
 
     try {
 
@@ -149,7 +168,17 @@ router.post("/close", async (req, res) => {
             requestId,
             orderId,
         })
-    })
+    },
+    {
+TRIM: {
+      strategy: "MAXLEN",
+      strategyModifier: "~",
+      threshold: 100_000
+    }
+    }
+
+
+)
 
     try {
         const responseFromEngine = await redisSubscriber.waitForMessage(requestId) as ResponseFromEngine;
@@ -197,7 +226,18 @@ router.post("/balance", async (req, res) => {
             userId,
             requestId,
         })
-    })
+    },
+    {
+TRIM: {
+      strategy: "MAXLEN",
+      strategyModifier: "~",
+      threshold: 100_000
+    }
+    }
+
+
+
+)
 
     try {
 
@@ -235,6 +275,7 @@ router.get("/closed-orders",async (req,res)=>{
             userId
         }
     })
+    // console.log("closed orders",closedOrders)
         return res.status(200).json({
     closedOrders
 })
@@ -264,7 +305,15 @@ router.get("/open", async (req, res) => {
             userId,
             requestId,
         })
-    })
+    },
+    {
+TRIM: {
+      strategy: "MAXLEN",
+      strategyModifier: "~",
+      threshold: 100_000
+    }
+    }
+)
 
     try {
 
