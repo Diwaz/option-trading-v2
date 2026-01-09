@@ -1,13 +1,13 @@
 import express, { request, response } from 'express'
 import cors from 'cors';
 import morgan from 'morgan';
-import { createClient } from 'redis';
+import { createClient, type RedisClientType } from 'redis';
 import routes from './routes';
 import { tradeRoutes } from './routes/tradeRoutes';
 import { authMiddleware } from './auth-middleware';
 import { otpCache } from './routes/auth';
 
-const redisInstance = createClient();
+const redisInstance: RedisClientType = createClient();
 await redisInstance.connect();
 const app = express()
 

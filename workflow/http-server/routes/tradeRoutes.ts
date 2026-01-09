@@ -4,15 +4,34 @@ import { RedisSubscriber } from "../redisSubscriber";
 import type {RedisClientType} from 'redis';
 import type {ResponseFromEngine} from '../types/types';
 import { PrismaClient } from "../generated/prisma/client";
-
+import * as z from "zod";
+import { validate } from "../helper/validator";
 
 const redisSubscriber = new RedisSubscriber();
 const prisma = new PrismaClient();
+
+const createTradeSchema = z.object({
+        margin: z.number().positive(),
+        leverage: z.number().positive().lt(100),
+        asset: z.enum(["SOL_USDC","ETH_USDC","BTC_USDC"]),
+        type: z.enum(["buy","sell"]),
+        slippage:z.number().positive(),
+})
+const payloadSchema = z.object({
+    userId: z.uuid(),
+    email:z.email().optional(),
+})
+const closeOrderSchema = z.object({
+    orderId: z.uuid(),
+})
+
 export const tradeRoutes = (client:RedisClientType<any>)=>{
     const router = Router();
 
     router.post("/onRamp", async (req, res) => {
-    console.log("inside the route")
+        try {
+
+        
     const startTime = Date.now();
     const {email} = req.body;
     // console.log("userId",userId)
@@ -77,21 +96,32 @@ TRIM: {
             message: "Unable to init User"
         });
     }
+    } catch(err){
+         res.status(411).json({
+            message: "Something went wrong"
+        });
+    }
+    // catch here
 
 });
-    router.post("/create", async (req, res) => {
-    console.log("inside the route")
-    const startTime = Date.now();
-    const {margin,slippage,leverage,asset,type} = req.body;
-    const {userId,email} = req.user;
-    console.log("userId",userId)
-    console.log("email",email)
 
-    if (!userId || !margin || !leverage || !asset || !type){
-      res.status(404).json({
-        message:"Invalid User Input"
-      })
-    }
+
+
+    router.post("/create", async (req, res) => {
+        try {
+
+    const startTime = Date.now();
+
+    const body = validate(createTradeSchema)(req.body);
+    const payload = validate(payloadSchema)(req.user);
+
+    const {margin,slippage,leverage,asset,type} = body;
+    const {userId,email} = payload;
+
+    // console.log("userId",userId)
+    // console.log("email",email)
+
+    
     const requestId = randomUUIDv7();
 
     console.log("sending message to the queue")
@@ -146,18 +176,24 @@ TRIM: {
             message: "Trade not placed"
         });
     }
+}catch(error){
+        res.status(411).json({
+            message: "Trade not placeed"
+        });
+}
 
 });
 
 router.post("/close", async (req, res) => {
+
     const startTime = Date.now();
-    const {orderId} = req.body;
-    const {userId} = req.user;
-    if (!orderId || !userId){
-      res.status(400).json({
-        message:"Invalid UserId or OrderId"
-      })
-    }
+     const body = validate(closeOrderSchema)(req.body);
+    const payload = validate(payloadSchema)(req.user);
+
+    const {userId} = payload;
+    const {orderId} = body;
+    
+    
     const requestId = randomUUIDv7();
 
     console.log("sending message to the queue")
@@ -211,12 +247,12 @@ TRIM: {
 });
 router.post("/balance", async (req, res) => {
     const startTime = Date.now();
-    const {userId} = req.user;
-    if ( !userId){
-      res.status(400).json({
-        message:"Invalid UserId"
-      })
-    }
+
+    const payload = validate(payloadSchema)(req.user);
+
+    const {userId} = payload;
+
+    
     const requestId = randomUUIDv7();
 
     console.log("sending message to the queue")
@@ -263,12 +299,12 @@ TRIM: {
 
 });
 router.get("/closed-orders",async (req,res)=>{
-    const {userId} = req.user ;
-    if (!userId){
-   return     res.status(400).json({
-                message:"Invalid User"
-        })
-    }
+
+     const payload = validate(payloadSchema)(req.user);
+
+    const {userId} = payload;
+
+    
     try {
     const closedOrders = await prisma.trade.findMany({
         where :{
@@ -290,12 +326,13 @@ router.get("/closed-orders",async (req,res)=>{
 })
 router.get("/open", async (req, res) => {
     const startTime = Date.now();
-    const {userId} = req.user;
-    if ( !userId){
-      res.status(400).json({
-        message:"Invalid UserId"
-      })
-    }
+
+
+   const payload = validate(payloadSchema)(req.user);
+
+    const {userId} = payload;
+
+    
     const requestId = randomUUIDv7();
 
     console.log("sending message to the queue")
@@ -326,7 +363,7 @@ TRIM: {
         }) }
         if (responseFromEngine.action === "SUCCESS"){
             res.json({
-            message: JSON.parse(responseFromEngine.payload),
+            message: JSON.parse(responseFromEngine.payload!),
             responseTime: Date.now() - startTime
         })
 

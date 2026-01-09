@@ -13,6 +13,19 @@ const CONSUMER = "consumer-1";
 
 const mailCache = new Map<string,boolean>();
 
+export type RedisStreamMessage<T = Record<string, string>> = {
+  id: string
+  message: T
+}
+
+export type RedisStreamResponse<T = Record<string, string>> = Array<{
+  name: string
+  messages: RedisStreamMessage<T>[]
+}>
+
+
+
+
 const transporter = nodemailer.createTransport({
   host: "smtp.gmail.com",
   port: 587,
@@ -35,31 +48,37 @@ const sendMail = async (email: string,htmlBody:string) => {
 }
 
 while (true) {
-  const response = await client.xReadGroup(
-    GROUP,
-    CONSUMER,
-    [{ key: "worker-stream", id: ">" }],
-    {
-      COUNT: 1,
-      BLOCK: 0
-    }
-  );
+  try {
 
-  if (!response) continue;
-
-  for (const stream of response) {
+    const response = await client.xReadGroup(
+      GROUP,
+      CONSUMER,
+      [{ key: "worker-stream", id: ">" }],
+      {
+        COUNT: 1,
+        BLOCK: 0
+      }
+    );
+    
+    if (!response) continue;
+    
+  for (const stream of response as RedisStreamResponse  ) {
     for (const message of stream.messages) {
       const { id, message: data } = message;
-
+      
       console.log("Processing:", id, data);
-
-      await saveToDB(data.data);
+      
+      await saveToDB(data.data as unknown as string);
 
       await client.xAck("worker-stream", GROUP, id);
       
       
       console.log("ACKD")
     }
+  }
+  }catch(err){
+    // log or monitor this error
+    console.log("err",err)
   }
 }
 
@@ -80,11 +99,9 @@ interface closedOrder {
 
 
 
-async function saveToDB(data:closedOrder) {
-const trade:closedOrder = JSON.parse(data)
-console.log("type of",typeof(trade.openingPrice))
-console.log("parsed data",trade)
-try {
+async function saveToDB(data:string) {
+  try {
+  const trade:closedOrder = JSON.parse(data)
 await Prisma.trade.create({
     data:{
         tradeId:trade.orderId,
@@ -124,7 +141,6 @@ if (process.env.ENVIRONMENT === "DEVELOPMENT"){
     throw(Error)
 }
 
-console.log("saving this to DB",trade)
 }
 
 

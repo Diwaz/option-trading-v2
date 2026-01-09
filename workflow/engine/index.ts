@@ -535,7 +535,7 @@ export const mapOrderIdToUserId = (orderId:string):string | null => {
   return null;
 }
 const liquidationEngine = (liveTrade:Asset) => {
-  openTradesArray.map((order) => {
+  openTradesArray.forEach((order) => {
     if (order.leverage > 1 && order.type === "buy" && order.asset === liveTrade.asset) {
       // const rawPnl = liveTrade.sellPrice - order.openPrice;
       // const exposer = order?.margin * order?.leverage;
@@ -547,16 +547,18 @@ const liquidationEngine = (liveTrade:Asset) => {
       // if threshold > 0.9*(%loss*100) then close order
       // const threshold = 90/leverage;
 
-     
-
+    // console.log("reached here") 
+        //  console.log("live trade",liveTrade.ask) 
       if (liveTrade.ask < order.openingPrice) {
-        const changePercentge = ((order.openingPrice - liveTrade.ask) / order.openingPrice)*100;
+        // console.log("reached here nw ")
+        const changePercentage = ((order.openingPrice - liveTrade.ask) / order.openingPrice)*100;
         // console.log("order openingPrice",order.openingPrice)
 
         // console.log("liveTrade ask Price",liveTrade.ask)
 
         // console.log('loss percentage',changePercentge);
-        if (changePercentge > 90 / (order.leverage)) {
+        console.log("change percentage",changePercentage,"for:",order.type,"at:",liveTrade.asset,"live Price",liveTrade.ask,"my price:",order.openingPrice)
+        if (changePercentage > 90 / (order.leverage)) {
           // close order
           const index = openTradesArray.findIndex(i => i.orderId == order.orderId);
           openTradesArray.splice(index, 1)
@@ -564,6 +566,7 @@ const liquidationEngine = (liveTrade:Asset) => {
           if (!userId) {
             return;
           }
+          console.log("order liquidated:",order.orderId)
           closeTrade(userId, order.orderId,true);
           const time = Date.now() 
           LiquidatedOrders.set(order.orderId,time.toString());
@@ -577,7 +580,9 @@ const liquidationEngine = (liveTrade:Asset) => {
     }else {
           if (order.type==="sell" && order.asset === liveTrade.asset ){
               if (liveTrade.bid > order.openingPrice) {
-                const changePercentage = (liveTrade.bid - order.openingPrice) / order.openingPrice;
+                const changePercentage = ((liveTrade.bid - order.openingPrice) / order.openingPrice)*100;
+
+        console.log("change percentage",changePercentage,"for:",order.type,"at:",liveTrade.asset,"live Price",liveTrade.bid,"my price:",order.openingPrice)
                   if (changePercentage > 90 / (order.leverage)) {
                           // close order
                     const index = openTradesArray.findIndex(i => i.orderId == order.orderId);
@@ -586,6 +591,8 @@ const liquidationEngine = (liveTrade:Asset) => {
                       if (!userId) {
                          return;
                         }
+
+                    console.log("order liquidated:",order.orderId)
                     closeTrade(userId, order.orderId,true);
                     const time = Date.now() 
                    LiquidatedOrders.set(order.orderId,time.toString());

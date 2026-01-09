@@ -40,3 +40,4 @@ export interface ResponseFromEngine {
   created: number,
   otp:string
  }
+type Asset = "ETH_USDC" | "SOL_USDC" | "BTC_USDC"
