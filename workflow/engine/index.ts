@@ -1,6 +1,5 @@
 import { randomUUIDv7 } from "bun";
 import { createClient } from "redis";
-import type { ParsePayload } from "zod/v4/core";
 
 
 
@@ -34,14 +33,6 @@ interface closedTrade extends Trade  {
   closePrice:number,
   pnl: number
 }
-
-let openTradesArray: Trade[] = [];
-let openTrades: Record<string, {trades: Trade[]}> = {};
-let userBalance: Record<string, {usd_balance:number}> = {};
-const closedTrades :Record<string,{trades:closedTrade[]}>={};
-let snapShot :Record<string,any> = {};
-const LiquidatedOrders = new Map<string,string>();
-
 interface createOrder {
   action: string,
   orderId: string,
@@ -59,16 +50,7 @@ interface fetchOrder {
   orderId:string;
   requestId:string;
 }
-// const trade = {
-//     orderId,
-//     margin: Number(margin),
-//     leverage: Number(leverage),
-//     slippage:Number(slippage),
-//     asset,
-//     type,
-//     openingPrice:marketPrice[asset]?.ask ?? 0,
-//     requestId
-//   }
+
 interface GetBalance {
   action:string,
   userId:string,
@@ -86,20 +68,71 @@ interface Asset {
   asset?:string
 }
 
+
+let openTradesArray: Trade[] = [];
+let openTrades: Record<string, {trades: Trade[]}> = {};
+let userBalance: Record<string, {usd_balance:number}> = {};
+const closedTrades :Record<string,{trades:closedTrade[]}>={};
+let snapShot :Record<string,any> = {};
+const LiquidatedOrders = new Map<string,string>();
+
 let marketPrice :Record<string,Asset>= {};
+
+let lastReadId = "0-0";
+
+type StreamResponse = Array<StreamUpperBody>
+interface StreamUpperBody {
+  name: string,
+  messages:StreamMainBody[] 
+}
+interface StreamMainBody{
+  id : string,
+  message : {
+    message: string
+  }
+}
+// [
+//   {
+//     name: "stream-name",
+//     messages:[
+//         {
+//           id:"msg-id",
+//           message:{
+//             message:"Stringified data"
+//           }
+//         }
+//     ]
+//   }
+// ]
+const normalizedXRead = (response:StreamResponse)=>{
+  if (!response?.[0]?.messages?.length) return null;
+
+  const msg = response[0].messages[0];
+
+  return {
+    id: msg?.id,
+    fields: msg?.message.message
+  }
+}
 const runLoop = async () => {
   while (1) {
 
     const response = await queue.xRead({
       key: "order_stream",
-      id: "$"
+      id: lastReadId,
     }, {
       BLOCK: 0,
       COUNT: 1
-    }) ;
+    }) as StreamResponse;
+
+    const event = normalizedXRead(response);
+     if (!event) continue;
     // const payload = JSON.parse(response[0].messages[0].message.message);
     // const action = JSON.parse(response[0].messages[0].message.message).action;
-    const raw = response[0].messages[0].message.message;
+    const raw = event.fields;
+
+    // console.log("msg id",raw);
+    const msgId = event.id
 const payload = typeof raw === "string" ? JSON.parse(raw) : raw;
 const action = payload.action
     switch (action) {
@@ -139,7 +172,7 @@ const action = payload.action
         closeOrder(payload);
         break;
       case "GET_BALANCE":
-        console.log("checking balance...");
+        // console.log("checking balance...");
         getBalance(payload);
         break;
       case "PRICE_UPDATE":
@@ -159,6 +192,7 @@ const action = payload.action
         console.log("here in default");
         break;
     }
+    lastReadId = msgId ?? "0-0";
   }
 }
 runLoop();
@@ -385,16 +419,7 @@ const createOrder = (payload: createOrder) => {
 
   
   const orderId = randomUUIDv7();
-  // const trade = {
-  //   orderId,
-  //   margin: Number(margin),
-  //   leverage: Number(leverage),
-  //   slippage:Number(slippage),
-  //   type,
-  //   asset,
-  //   openingPrice:marketPrice[asset]?.ask ?? 0,
-  //   requestId
-  // }
+
 const trade = {
   orderId,
   margin: Number(margin) || 0,
@@ -453,16 +478,21 @@ const isLiquidated = (orderId:string)=>{
  
  }
 const errorToServer = (payload:any)=>{
+  try {
   queue.xAdd("callback_queue", "*", {
     id: payload.requestId,
     error: payload.err.toString(),
     action:"FAILED",
   })
+  }catch(err){
+    console.log("error from errToServer",err)
+  }
+
 
 }
 const responseLiquidatedOrders = (payload:any) => {
   const requestId = payload.requestId;
-   
+  try {
   queue.xAdd("callback_queue", "*", {
     id: requestId,
     orderId: payload.orderId,
@@ -470,28 +500,32 @@ const responseLiquidatedOrders = (payload:any) => {
     action:"LIQUIDATED"
   })
  console.log("Order Liquidated Detected & Sent") 
+  }catch(err){
+    console.log("err from responseLiquidatedOrder",err)
+  }   
+
 }
 
 const responseToServer = (payload:any) => {
   const requestId = payload.requestId;
-  // console.log("payload.action",payload.action)
-  // if (payload.action != "GET_BALANCE"){
-
-  //   console.log("resp to server payload",payload);
-  // }
-  
+  try {
   queue.xAdd("callback_queue", "*", {
     id: requestId,
     orderId: payload.orderId,
     action:"SUCCESS"
   })
-  console.log("response sent back");
-  
+  // console.log("response sent back");
+ 
+  }catch(err){
+    console.log("error from response to server",err)
+  } 
+ 
 }
 
 
 const responseClosedOrder = (payload:any)=> {
   const requestId = payload.requestId;
+  try {
   const closedOrder = {
 id:requestId,
     action:"CLOSED_ORDER",
@@ -510,13 +544,17 @@ id:requestId,
   data:JSON.stringify(closedOrder)    
   })
   console.log("closed order response sent back")
+
+  }catch(err){
+    console.log("err from response closed order");
+  }
 }
 
 const responseToServerFlexible = (payload:any) => {
   const requestId = payload.requestId;
   // console.log("payload.action",payload.action)
-  
-  console.log("before crashing",JSON.stringify(payload)) 
+ try {
+ console.log("before crashing",JSON.stringify(payload)) 
   queue.xAdd("callback_queue", "*", {
     id: requestId,
     payload: JSON.stringify(payload.response),
@@ -524,6 +562,10 @@ const responseToServerFlexible = (payload:any) => {
   })
   console.log("response sent back");
   
+ }catch(err){
+  console.log("response from response to server flexible",err)
+ } 
+ 
 }
 
 export const mapOrderIdToUserId = (orderId:string):string | null => {
@@ -626,6 +668,8 @@ const captureSnapShot = async ()=>{
   snapShot["balances"]=userBalance;
   snapShot["openTradesArray"]= openTradesArray;
   snapShot["marketPrice"] = marketPrice;
+  snapShot["lastReadId"] = lastReadId;
+
 
   await Bun.write('./snapshot.json',JSON.stringify(snapShot));
 }
@@ -643,6 +687,7 @@ const loadSnapShot = async ()=>{
   openTradesArray = recoveredsnapShot["openTradesArray"]
   userBalance = recoveredsnapShot["balances"]
   marketPrice = recoveredsnapShot["marketPrice"] ?? {}
+  lastReadId = recoveredsnapShot["lastReadId"]
   
 
   }catch(err){

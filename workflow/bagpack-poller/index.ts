@@ -64,7 +64,16 @@ setInterval(async () => {
         ask: Math.trunc(a.ask * 1e4).toString()
 
       })
-    });
+    },
+ {
+TRIM: {
+      strategy: "MAXLEN",
+      strategyModifier: "~",
+      threshold: 50_000
+    }
+    }
+  
+  );
   }
   publisher.publish("data", JSON.stringify(marketData))
 }, 100)
