@@ -2,8 +2,16 @@ import { createClient } from "redis";
 import { WebSocketServer } from "ws";
 import WebSocket from "ws";
 
-const redis = createClient();
+const redis = createClient({
+    username: process.env.REDIS_USERNAME,
+    password: process.env.REDIS_PASSWORD,
+    socket: {
+        host: process.env.REDIS_HOST,
+        port: Number(process.env.REDIS_PORT)
+    }
+});
 
+redis.on('error', err => console.log('Redis Client Error', err));
 const subscriber = redis.duplicate();
 const subscribedUsers: Set<WebSocket> = new Set();
 await subscriber.connect();

@@ -7,7 +7,16 @@ import { tradeRoutes } from './routes/tradeRoutes';
 import { authMiddleware } from './auth-middleware';
 import { otpCache } from './routes/auth';
 
-const redisInstance: RedisClientType = createClient();
+const redisInstance: RedisClientType = createClient({
+    username: process.env.REDIS_USERNAME,
+    password: process.env.REDIS_PASSWORD,
+    socket: {
+        host: process.env.REDIS_HOST,
+        port: Number(process.env.REDIS_PORT)
+    }
+});
+
+redisInstance.on('error', err => console.log('Redis Client Error', err));
 await redisInstance.connect();
 const app = express()
 
