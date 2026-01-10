@@ -226,7 +226,7 @@ TRIM: {
         }) }
         if (responseFromEngine.action === "SUCCESS"){
             res.json({
-            message: "Order cancled successfully",
+            message: "Order closed successfully",
             // orderId:responseFromEngine.orderId,
             responseTime: Date.now() - startTime
         })

@@ -483,7 +483,15 @@ const errorToServer = (payload:any)=>{
     id: payload.requestId,
     error: payload.err.toString(),
     action:"FAILED",
-  })
+  },
+   {
+TRIM: {
+      strategy: "MAXLEN",
+      strategyModifier: "~",
+      threshold: 1000
+    }
+    }
+)
   }catch(err){
     console.log("error from errToServer",err)
   }
@@ -498,7 +506,15 @@ const responseLiquidatedOrders = (payload:any) => {
     orderId: payload.orderId,
     message:"Order Already Liquidated!",
     action:"LIQUIDATED"
-  })
+  },
+   {
+TRIM: {
+      strategy: "MAXLEN",
+      strategyModifier: "~",
+      threshold: 1000
+    }
+    }
+)
  console.log("Order Liquidated Detected & Sent") 
   }catch(err){
     console.log("err from responseLiquidatedOrder",err)
@@ -513,7 +529,15 @@ const responseToServer = (payload:any) => {
     id: requestId,
     orderId: payload.orderId,
     action:"SUCCESS"
-  })
+  },
+   {
+TRIM: {
+      strategy: "MAXLEN",
+      strategyModifier: "~",
+      threshold: 1000
+    }
+    }
+)
   // console.log("response sent back");
  
   }catch(err){
@@ -542,7 +566,15 @@ id:requestId,
   }
   queue.xAdd("worker-stream","*",{
   data:JSON.stringify(closedOrder)    
-  })
+  },
+   {
+TRIM: {
+      strategy: "MAXLEN",
+      strategyModifier: "~",
+      threshold: 1000
+    }
+    }
+)
   console.log("closed order response sent back")
 
   }catch(err){
@@ -559,7 +591,15 @@ const responseToServerFlexible = (payload:any) => {
     id: requestId,
     payload: JSON.stringify(payload.response),
     action:"SUCCESS"
-  })
+  },
+   {
+TRIM: {
+      strategy: "MAXLEN",
+      strategyModifier: "~",
+      threshold: 1000
+    }
+    }
+)
   console.log("response sent back");
   
  }catch(err){
@@ -622,7 +662,7 @@ const liquidationEngine = (liveTrade:Asset) => {
     }else {
           if (order.type==="sell" && order.asset === liveTrade.asset ){
               if (liveTrade.bid > order.openingPrice) {
-                const changePercentage = ((liveTrade.bid - order.openingPrice) / order.openingPrice)*100;
+                const changePercentage = ((liveTrade.bid - order.openingPrice) / order.openingPrice)*10000;
 
         console.log("change percentage",changePercentage,"for:",order.type,"at:",liveTrade.asset,"live Price",liveTrade.bid,"my price:",order.openingPrice)
                   if (changePercentage > 90 / (order.leverage)) {
