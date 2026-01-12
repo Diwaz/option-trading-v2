@@ -24,7 +24,7 @@ subscriber.subscribe('data', (data) => {
       ws.send(data)
     }
   })
-  console.log('data', data)
+  // console.log('data', data)
 })
 
 

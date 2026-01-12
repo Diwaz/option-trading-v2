@@ -5,21 +5,19 @@ import { closeTradeEmailHTML } from "./emailTemplate";
 
 
 const redis = createClient({
-    username: process.env.REDIS_USERNAME,
-    password: process.env.REDIS_PASSWORD,
-    socket: {
-        host: process.env.REDIS_HOST,
-        port: Number(process.env.REDIS_PORT)
-    }
+  username: process.env.REDIS_USERNAME,
+  password: process.env.REDIS_PASSWORD,
+  socket: {
+    host: process.env.REDIS_HOST,
+    port: Number(process.env.REDIS_PORT)
+  }
 });
 redis.on('error', err => console.log('Redis Client Error', err));
 const client = redis.duplicate();
 await client.connect();
 
-const GROUP = "worker-group";
-const CONSUMER = "consumer-1";
 
-const mailCache = new Map<string,boolean>();
+const mailCache = new Map<string, boolean>();
 
 export type RedisStreamMessage<T = Record<string, string>> = {
   id: string
@@ -37,14 +35,14 @@ export type RedisStreamResponse<T = Record<string, string>> = Array<{
 const transporter = nodemailer.createTransport({
   host: "smtp.gmail.com",
   port: 587,
-  secure: false, 
+  secure: false,
   auth: {
     user: "y2kdwz@gmail.com",
     pass: process.env.SMTP_PASS,
   },
 });
 
-const sendMail = async (email: string,htmlBody:string) => {
+const sendMail = async (email: string, htmlBody: string) => {
   const info = await transporter.sendMail({
     from: '"Flux Trade" <y2kdwz@gmail.com>',
     to: email,
@@ -54,6 +52,30 @@ const sendMail = async (email: string,htmlBody:string) => {
 
 
 }
+
+const CONSUMER = "consumer-1";
+const STREAM = "worker-stream";
+const GROUP = "worker-group";
+
+async function ensureGroup() {
+  try {
+    await client.xGroupCreate(
+      STREAM,
+      GROUP,
+      "$",
+      { MKSTREAM: true }
+    );
+    console.log("Consumer group created");
+  } catch (err: any) {
+    if (err?.message?.includes("BUSYGROUP")) {
+      console.log("Consumer group already exists");
+    } else {
+      throw err;
+    }
+  }
+}
+
+await ensureGroup();
 
 while (true) {
   try {
@@ -67,87 +89,87 @@ while (true) {
         BLOCK: 0
       }
     );
-    
-    if (!response) continue;
-    
-  for (const stream of response as RedisStreamResponse  ) {
-    for (const message of stream.messages) {
-      const { id, message: data } = message;
-      
-      console.log("Processing:", id, data);
-      
-      await saveToDB(data.data as unknown as string);
 
-      await client.xAck("worker-stream", GROUP, id);
-      
-      
-      console.log("ACKD")
+    if (!response) continue;
+
+    for (const stream of response as RedisStreamResponse) {
+      for (const message of stream.messages) {
+        const { id, message: data } = message;
+
+        console.log("Processing:", id, data);
+
+        await saveToDB(data.data as unknown as string);
+
+        await client.xAck("worker-stream", GROUP, id);
+
+
+        console.log("ACKD")
+      }
     }
-  }
-  }catch(err){
+  } catch (err) {
     // log or monitor this error
-    console.log("err",err)
+    console.log("err", err)
   }
 }
 
 
 interface closedOrder {
-    action: string,
-    userId: string,
-    orderId:string,
-    type: string,
-    margin:number,
-    leverage:number,
-    asset:string,
-    openingPrice:number
-    closePrice:number,
-    pnl:number
-    closedTime:string,
+  action: string,
+  userId: string,
+  orderId: string,
+  type: string,
+  margin: number,
+  leverage: number,
+  asset: string,
+  openingPrice: number
+  closePrice: number,
+  pnl: number
+  closedTime: string,
 }
 
 
 
-async function saveToDB(data:string) {
+async function saveToDB(data: string) {
   try {
-  const trade:closedOrder = JSON.parse(data)
-await Prisma.trade.create({
-    data:{
-        tradeId:trade.orderId,
-        symbol:trade.asset,
-        buyPrice:trade.openingPrice,
+    const trade: closedOrder = JSON.parse(data)
+    await Prisma.trade.create({
+      data: {
+        tradeId: trade.orderId,
+        symbol: trade.asset,
+        buyPrice: trade.openingPrice,
         side: trade.type,
-        pnl:trade.pnl*1e4, 
-        sellPrice:trade.closePrice,
-        userId:trade.userId,
-        leverage:trade.leverage,
-        margin:trade.margin,
-        closedTime:trade.closedTime
+        pnl: trade.pnl * 1e4,
+        sellPrice: trade.closePrice,
+        userId: trade.userId,
+        leverage: trade.leverage,
+        margin: trade.margin,
+        closedTime: trade.closedTime
 
-    }
-})
+      }
+    })
 
-const userEmail = await Prisma.user.findUnique({
-    where: {
+    const userEmail = await Prisma.user.findUnique({
+      where: {
         id: trade.userId
-    },
-    select : {
-        email:true
-    }
-});
-if (process.env.ENVIRONMENT === "DEVELOPMENT"){
-    if (!mailCache.has(userEmail?.email as string)) {
-        mailCache.set(userEmail?.email as string,true)
+      },
+      select: {
+        email: true
+      }
+    });
+    if (process.env.ENVIRONMENT === "PRODUCTION") {
+      if (!mailCache.has(userEmail?.email as string)) {
+        mailCache.set(userEmail?.email as string, true)
         const pnlColor = trade.pnl > 0 ? "green" : "red";
-        const htmlBody = closeTradeEmailHTML(trade.asset,(trade.pnl.toFixed(2)),trade.type,(trade.openingPrice/1e4).toString(),(trade.margin/1e4).toString(),trade.type.toUpperCase(),trade.leverage.toString(),(trade.closePrice/1e4).toString(),trade.orderId,pnlColor);
-        await sendMail(userEmail?.email as string,htmlBody);
+        const htmlBody = closeTradeEmailHTML(trade.asset, (trade.pnl.toFixed(2)), trade.type, (trade.openingPrice / 1e4).toString(), (trade.margin / 1e4).toString(), trade.type.toUpperCase(), trade.leverage.toString(), (trade.closePrice / 1e4).toString(), trade.orderId, pnlColor);
+        await sendMail(userEmail?.email as string, htmlBody);
+      }
+
     }
 
-}
-
-} catch(Error) {
+  } catch (Error) {
     console.log("Failed to Saving to DB")
-    throw(Error)
-}
+    throw (Error)
+  }
 
 }
 

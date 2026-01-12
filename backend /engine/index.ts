@@ -125,10 +125,9 @@ const normalizedXRead = (response:StreamResponse)=>{
 }
 const runLoop = async () => {
   while (1) {
-
     const response = await queue.xRead({
       key: "order_stream",
-      id: lastReadId,
+      id: "$",
     }, {
       BLOCK: 0,
       COUNT: 1
@@ -140,13 +139,13 @@ const runLoop = async () => {
     // const action = JSON.parse(response[0].messages[0].message.message).action;
     const raw = event.fields;
 
-    // console.log("msg id",raw);
     const msgId = event.id
 const payload = typeof raw === "string" ? JSON.parse(raw) : raw;
 const action = payload.action
+// console.log(action)
     switch (action) {
       case "CREATE_ACCOUNT":
-        // console.log("reached here in CREATEACCOUNT");
+        console.log("reached here in CREATEACCOUNT");
         const {userId,requestId} = payload;
         if (!userBalance[userId]){
           initBalanceForUser(userId);
@@ -170,9 +169,9 @@ const action = payload.action
         createOrder(payload)
         break;
       case "GET_OPEN_ORDERS":
-        console.log("reached here to fetch open orders");
+        // console.log("reached here to fetch open orders");
         // createOrder(payload);
-        // console.log("payload from here",payload);
+        // console.log("GET OPEN ORDERS");
         getOpenOrders(payload);
         // createOrder(payload)
         break;
@@ -257,7 +256,7 @@ const addTrades = (userId: string , trade: Trade) =>{
       openTrades[userId]?.trades.push(trade);
       openTradesArray.push(trade);
       console.log("trade added",trade);
-      console.log("open trades from create trade",openTrades);
+      // console.log("open trades from create trade",openTrades);
       
       // mapUserToTrades[userId]?.push(trade.orderId);
       // console.log('openTradesArray',openTradesArray);
@@ -289,9 +288,9 @@ let data = {
 }
   }
 
-console.log("before sending open trades data :",data)
+// console.log("before sending open trades data :",data)
   responseToServerFlexible(data)
-  console.log(`open trade for user ${userId}:`,data.response)
+  // console.log(`open trade for user ${userId}:`,data.response)
     // console.log("open trades ALLLLL",openTrades)
 }
 export const closeTrade = (userId:string,orderId:string,liquidation:boolean) => {
@@ -420,8 +419,8 @@ const createOrder = (payload: createOrder) => {
   const {margin,leverage,slippage,asset,userId,type,requestId} = payload;
 
   // console.log('payload',payload);
-  console.log("received this asset",asset) 
-  console.log("creating order .......", !userBalance[userId]);
+  // console.log("received this asset",asset) 
+  // console.log("creating order .......", !userBalance[userId]);
   if (!userBalance[userId]){
     initBalanceForUser(userId);
   }
@@ -648,7 +647,7 @@ const liquidationEngine = (liveTrade:Asset) => {
         // console.log("liveTrade ask Price",liveTrade.ask)
 
         // console.log('loss percentage',changePercentge);
-        console.log("change percentage",changePercentage,"for:",order.type,"at:",liveTrade.asset,"live Price",liveTrade.ask,"my price:",order.openingPrice)
+        // console.log("change percentage",changePercentage,"for:",order.type,"at:",liveTrade.asset,"live Price",liveTrade.ask,"my price:",order.openingPrice)
         if (changePercentage > 90 / (order.leverage)) {
           // close order
           const index = openTradesArray.findIndex(i => i.orderId == order.orderId);
@@ -673,7 +672,7 @@ const liquidationEngine = (liveTrade:Asset) => {
               if (liveTrade.bid > order.openingPrice) {
                 const changePercentage = ((liveTrade.bid - order.openingPrice) / order.openingPrice)*10000;
 
-        console.log("change percentage",changePercentage,"for:",order.type,"at:",liveTrade.asset,"live Price",liveTrade.bid,"my price:",order.openingPrice)
+        // console.log("change percentage",changePercentage,"for:",order.type,"at:",liveTrade.asset,"live Price",liveTrade.bid,"my price:",order.openingPrice)
                   if (changePercentage > 90 / (order.leverage)) {
                           // close order
                     const index = openTradesArray.findIndex(i => i.orderId == order.orderId);
@@ -741,6 +740,9 @@ const loadSnapShot = async ()=>{
 
   }catch(err){
     console.log("error processing snapshot");
+  }
+  finally{
+    console.log("snapshot loaded")
   }
 }
 

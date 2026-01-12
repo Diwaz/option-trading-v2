@@ -1,0 +1,41 @@
+version: "3.0"
+
+services:
+  pubsub-poller:
+    image: y2kdwz/pubsub-be:latest
+    container_name: pubsub-be
+    env_file:
+      - .env
+    ports:
+    - "8080:8080"
+    restart: unless-stopped
+
+  db-worker:
+    image: y2kdwz/db-worker
+    container_name: db-worker
+    env_file:
+      - .env
+    restart: unless-stopped
+
+  backpack-poller:
+    image: y2kdwz/backpack-poller
+    container_name: poller
+    env_file:
+      - .env
+    restart: unless-stopped
+
+  engine:
+    image: y2kdwz/engine
+    container_name: engine
+    env_file:
+      - .env
+    restart: unless-stopped
+  
+  http-server:
+    image: y2kdwz/http-server
+    container_name: http-server
+    env_file:
+      - .env
+    ports:
+    - "8848:8848"
+    restart: unless-stopped

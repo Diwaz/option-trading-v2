@@ -41,7 +41,7 @@ ws.on('open', () => {
 })
 
 const updatePrice = (symbol: string, buyPrice: number, sellPrice: number) => {
-  console.log(symbol, buyPrice, sellPrice);
+  // console.log(symbol, buyPrice, sellPrice);
   const entry = marketData.price_updates.find(trade => trade.asset === symbol)
   if (entry) {
     entry.buy = buyPrice,
@@ -57,7 +57,7 @@ const updatePrice = (symbol: string, buyPrice: number, sellPrice: number) => {
 ws.on("message", (msg) => {
   // console.log(JSON.parse(msg.toString()));
   const trade = JSON.parse(msg.toString())
-  console.log("trades", trade.data);
+  // console.log("trades", trade.data);
   updatePrice(trade.data.s, Number(trade.data.b), Number(trade.data.a));
 })
 setInterval(async () => {
