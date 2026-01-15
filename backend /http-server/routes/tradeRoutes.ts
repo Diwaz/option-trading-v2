@@ -6,6 +6,30 @@ import type {ResponseFromEngine} from '../types/types';
 import { PrismaClient } from "../generated/prisma/client";
 import * as z from "zod";
 import { validate } from "../helper/validator";
+import { webSocketUsers } from "..";
+import { processAgenticMessage } from "../agenticManager";
+import { registry } from "@langchain/langgraph/zod";
+import { HumanMessage, type BaseMessage } from "@langchain/core/messages";
+import { MessagesZodMeta } from "@langchain/langgraph";
+
+
+const MessageState = z.object({
+  messages: z.array(z.custom<BaseMessage>()).register(registry, MessagesZodMeta),
+  llmCalls: z.number().optional()
+})
+
+
+type State = z.infer<typeof MessageState>;
+type UserStore = Record<string,State>
+type GlobalStore = Record<string,UserStore>
+
+const globalStore:GlobalStore = {}
+const state:State ={
+  messages:[],
+  llmCalls:0,
+}
+
+const globalState = new Map<string,State>();
 
 const redisSubscriber = new RedisSubscriber();
 const prisma = new PrismaClient();
@@ -17,12 +41,17 @@ const createTradeSchema = z.object({
         type: z.enum(["buy","sell"]),
         slippage:z.number().positive(),
 })
-const payloadSchema = z.object({
-    userId: z.uuid(),
+export const payloadSchema = z.object({
+    userId: z.string(),
     email:z.email().optional(),
 })
 const closeOrderSchema = z.object({
     orderId: z.uuid(),
+})
+
+const askAgentSchema = z.object({
+   humanMessage: z.string().min(1,"String should be  minimum of 5 characters") 
+
 })
 
 export const tradeRoutes = (client:RedisClientType<any>)=>{
@@ -106,7 +135,50 @@ TRIM: {
 });
 
 
+    router.post("/ask-agent",async(req,res)=>{
+        const body = validate(askAgentSchema)(req.body);
+        const {humanMessage} = body;
+        console.log('userId',req.user)
+        const payload = validate(payloadSchema)(req.user);
+        const {userId} = payload;
+        console.log("HUMANNNN MSG",userId)
+        const userSocket = webSocketUsers.get(userId);
+        if (!userSocket){
+            return res.status(404).json({
+                success: false,
+                error: "Failed to get user"
+            })
+        }
+        // if(!globalStore.userId){
+            //       globalStore.userId={
+                //           messages:[],
+                //           llmCalls:0
+                //       }
+                //     }
+                try {
+    const msgState = {
+        messages: [],
+        llmCalls:0
+    }
+    if (!globalState.has(userId)){
+        globalState.set(userId,msgState)
+    }
 
+    
+    const projectState:State = globalState.get(userId);
+    projectState.messages.push(new HumanMessage(humanMessage))
+            await processAgenticMessage(projectState,userSocket)
+    res.status(200).json({ message: "Processing your request..." });
+
+        }catch(err){
+            return res.status(404).json({
+                success: false,
+                error: err
+            })
+        }
+    })
+    
+    
     router.post("/create", async (req, res) => {
         try {
 
