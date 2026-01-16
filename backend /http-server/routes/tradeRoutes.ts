@@ -136,12 +136,13 @@ TRIM: {
 
 
     router.post("/ask-agent",async(req,res)=>{
+        try {
         const body = validate(askAgentSchema)(req.body);
         const {humanMessage} = body;
         console.log('userId',req.user)
         const payload = validate(payloadSchema)(req.user);
         const {userId} = payload;
-        console.log("HUMANNNN MSG",userId)
+        console.log("HUMANNNN MSG",humanMessage)
         const userSocket = webSocketUsers.get(userId);
         if (!userSocket){
             return res.status(404).json({
@@ -155,19 +156,24 @@ TRIM: {
                 //           llmCalls:0
                 //       }
                 //     }
-                try {
-    const msgState = {
+    
+    if (!globalState.has(userId)){
+        const msgState = {
         messages: [],
         llmCalls:0
     }
-    if (!globalState.has(userId)){
         globalState.set(userId,msgState)
     }
 
     
     const projectState:State = globalState.get(userId);
     projectState.messages.push(new HumanMessage(humanMessage))
-            await processAgenticMessage(projectState,userSocket)
+           try {
+      await processAgenticMessage(projectState, userSocket);
+    } catch (err) {
+      console.error("Agentic error:", err);
+      // Optionally send error to websocket here
+    }
     res.status(200).json({ message: "Processing your request..." });
 
         }catch(err){

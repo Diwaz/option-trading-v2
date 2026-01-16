@@ -21,15 +21,23 @@ type State = z.infer<typeof MessageState>;
 
 export async function processAgenticMessage(state:State,ws:WebSocket){
 
+   const send = (msg:any) => {
+        if (ws && ws.readyState === ws.OPEN){
+            ws.send(JSON.stringify({
+                message:msg
+            }))
+        }
+    };
+
 const llm = new ChatGoogleGenerativeAI({
-  model: "gemini-2.5-flash-lite",
+  model: "gemini-2.5-flash",
 });
 
 
 
 
 const createFormatStrategy = tool(
-  async ({ asset, indicator, condition, value, action }) => {
+  async ({ asset, indicator, condition, value, action,leverage,margin }) => {
     try {
       const formattedMessage = {
         asset,
@@ -37,6 +45,8 @@ const createFormatStrategy = tool(
         condition,
         value,
         action,
+        leverage,
+        margin
       };
       return JSON.stringify(formattedMessage);
     } catch (err) {
@@ -52,6 +62,8 @@ const createFormatStrategy = tool(
       condition: z.string().describe("Condition type, e.g. crosses_below, increases_by"),
       value: z.number().describe("Threshold value"),
       action: z.string().describe("Action to take, e.g. BUY or SELL"),
+      margin: z.string().describe("Whats the margin in which the order should take place eg: 100$ , 500$"),
+      leverage: z.string().describe("Leverage to take on the following trade")
     }),
   }
 )
@@ -67,31 +79,32 @@ const llmWithTools = llm.bindTools(tools);
 
 
 async function llmCall(state: State) {
-
-  // if (state.llmCalls == 0){
-    console.log("1st LLM CALLLLLLLL")
-    send("running LLM")
+  console.log("1st LLM CALLLLLLLL")
+  // send("running LLM")
   const llmResponse = await llmWithTools.invoke([
     new SystemMessage(SYSTEM_PROMPT),
     ...state.messages
   ])
 
-  // Send the LLM response to the user's websocket
-  send(JSON.stringify({
-    type:"message",
-    message: llmResponse.content,
-  }));
-  console.log("llm content",llmResponse.content)
+  // Check if this is a plain text follow-up or a tool call
+  if (!llmResponse.tool_calls || llmResponse.tool_calls.length === 0) {
+    // Plain text follow-up from LLM
+    send(JSON.stringify({
+      type: "follow-up",
+      message: llmResponse.content,
+    }));
+  } else {
+    // There are tool calls, let toolNode handle the decision message
+    // (toolNode will send the decision message after tool execution)
+  }
 
+  console.log("llm content", llmResponse.content)
   const newCallCount = state.llmCalls + 1
-  console.log("state of llmCalls",state.llmCalls)
+  console.log("state of llmCalls", state.llmCalls)
   return {
     messages: [...state.messages, llmResponse],
     llmCalls: newCallCount,
   }
-  send("LLM done")
-
-
 }
 
 async function toolNode(state: State) {
@@ -104,18 +117,30 @@ async function toolNode(state: State) {
   }
   const result: ToolMessage[] = [];
   for (const toolCall of lastMessage.tool_calls ?? []) {
-      const tool = toolsByName[toolCall.name];
-      if (!tool) continue;
-      const observation = await tool.invoke(toolCall);
-      console.log("tool msg")
-      send("tool msg")
+    const tool = toolsByName[toolCall.name];
+    if (!tool) continue;
+    const observation = await tool.invoke(toolCall);
+    console.log("tool msg")
+    // If this is the create_format_strategy tool, treat as a decision
+    if (toolCall.name === "create_format_strategy") {
+      console.log("observation ",JSON.parse(observation.content))
+      send(JSON.stringify({
+        type: "decision",
+        data: observation
+      }));
+    } else {
+      // For any other tool, treat as follow-up
+      send(JSON.stringify({
+        type: "follow-up",
+        message: observation
+      }));
+    }
     result.push(
       new ToolMessage({
         tool_call_id: toolCall.id,
-        content:observation
+        content: observation
       })
     );
-
   }
 
   return {
@@ -124,7 +149,6 @@ async function toolNode(state: State) {
 
 }
 async function shouldContinue(state: State) {
-  send("wwelcome to should conti")
   const lastMessage = state.messages.at(-1);
   if (lastMessage == null || !isAIMessage(lastMessage)) {
     return END
@@ -146,17 +170,15 @@ const agent = new StateGraph(MessageState)
   .compile();
 
 
-    const send = (msg) => {
-        if (ws && ws.readyState === ws.OPEN){
-            ws.send(JSON.stringify({
-                message:msg
-            }))
-        }
-    };
+ 
     console.log("agent started")
-    send("Agent started")
+    // send("Agent started")
+ send(JSON.stringify({
+      type: "startegy",
+      message: "Analyzing your requesy",
+    }));
     await agent.invoke(state)
-    send("LLM DONE")
+    // send("LLM DONE")
     console.log("LLM Done")
 
 

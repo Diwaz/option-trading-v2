@@ -232,7 +232,7 @@ class StrategyMatcher:
         while True:
             try:
                 messages = await self.redis_client.xread(
-                    {"strategy_stream": last_id},
+                    {"strategy_stream": "$"},
                     count=10,
                     block=1000
                 )
