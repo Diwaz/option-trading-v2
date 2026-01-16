@@ -184,7 +184,58 @@ TRIM: {
         }
     })
     
+     router.post("/execute", async (req, res) => {
+        try {
+
+    const startTime = Date.now();
+
+    const body = validate(createTradeSchema)(req.body);
+    const payload = validate(payloadSchema)(req.user);
+
+    const {margin,slippage,leverage,asset,type} = body;
+    const {userId,email} = payload;
+
+    // console.log("userId",userId)
+    // console.log("email",email)
+
     
+    const requestId = randomUUIDv7();
+
+    console.log("sending message to the queue")
+    await client.xAdd("strategy_matching", "*", {
+        message: JSON.stringify({
+            action:"ADD_STRATEGY",
+            userId,
+            requestId,
+            margin,
+            slippage,
+            leverage,
+            asset,
+            type
+        })
+    },
+    {
+TRIM: {
+      strategy: "MAXLEN",
+      strategyModifier: "~",
+      threshold: 100_000
+    }
+    }
+
+
+)
+
+    res.status(200).json({
+        success: true,
+        message: "Strategy Placed Successfully"
+    }) 
+}catch(error){
+        res.status(411).json({
+            message: "Trade not placeed"
+        });
+}
+
+}); 
     router.post("/create", async (req, res) => {
         try {
 

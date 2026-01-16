@@ -30,7 +30,7 @@ export async function processAgenticMessage(state:State,ws:WebSocket){
     };
 
 const llm = new ChatGoogleGenerativeAI({
-  model: "gemini-2.5-flash",
+  model: "gemini-2.5-flash-lite",
 });
 
 
@@ -62,8 +62,8 @@ const createFormatStrategy = tool(
       condition: z.string().describe("Condition type, e.g. crosses_below, increases_by"),
       value: z.number().describe("Threshold value"),
       action: z.string().describe("Action to take, e.g. BUY or SELL"),
-      margin: z.string().describe("Whats the margin in which the order should take place eg: 100$ , 500$"),
-      leverage: z.string().describe("Leverage to take on the following trade")
+      margin: z.string().describe("Whats the margin in which the order should take place eg: 100 , 500 accpets string or number both"),
+      leverage: z.string().describe("Leverage to take on the following trade accpets string or number both")
     }),
   }
 )
@@ -85,7 +85,7 @@ async function llmCall(state: State) {
     new SystemMessage(SYSTEM_PROMPT),
     ...state.messages
   ])
-
+  console.log("llm response here with dis dis dis id ",llmResponse)
   // Check if this is a plain text follow-up or a tool call
   if (!llmResponse.tool_calls || llmResponse.tool_calls.length === 0) {
     // Plain text follow-up from LLM
@@ -123,10 +123,10 @@ async function toolNode(state: State) {
     console.log("tool msg")
     // If this is the create_format_strategy tool, treat as a decision
     if (toolCall.name === "create_format_strategy") {
-      console.log("observation ",JSON.parse(observation.content))
+      // console.log("observation ",JSON.parse(observation.content))
       send(JSON.stringify({
         type: "decision",
-        data: observation
+        data: observation.content
       }));
     } else {
       // For any other tool, treat as follow-up
@@ -175,7 +175,7 @@ const agent = new StateGraph(MessageState)
     // send("Agent started")
  send(JSON.stringify({
       type: "startegy",
-      message: "Analyzing your requesy",
+      message: "Processing Your Request",
     }));
     await agent.invoke(state)
     // send("LLM DONE")
