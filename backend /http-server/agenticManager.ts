@@ -63,8 +63,8 @@ const createFormatStrategy = tool(
       condition: z.string().describe("Condition type, e.g. crosses_below, increases_by"),
       value: z.number().describe("Threshold value"),
       action: z.string().describe("Action to take, e.g. BUY or SELL"),
-      margin: z.string().describe("Whats the margin in which the order should take place eg: 100 , 500 accpets string or number both"),
-      leverage: z.string().describe("Leverage to take on the following trade accpets string or number both"),
+      margin: z.number().describe("Whats the margin in which the order should take place eg: 100 , 500 accpets string or number both"),
+      leverage: z.number().describe("Leverage to take on the following trade accpets string or number both"),
       directOrder: z.boolean().describe("true if user want to place direct order false if user wants to set strategy")
     }),
   }

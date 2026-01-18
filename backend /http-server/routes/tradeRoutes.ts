@@ -1,8 +1,8 @@
 import { randomUUIDv7 } from "bun";
 import { Router, type Request } from "express";
 import { RedisSubscriber } from "../redisSubscriber";
-import type {RedisClientType} from 'redis';
-import type {ResponseFromEngine} from '../types/types';
+import type { RedisClientType } from 'redis';
+import type { ResponseFromEngine } from '../types/types';
 import { PrismaClient } from "../generated/prisma/client";
 import * as z from "zod";
 import { validate } from "../helper/validator";
@@ -135,54 +135,66 @@ TRIM: {
 });
 
 
-    router.post("/ask-agent",async(req,res)=>{
-        try {
-        const body = validate(askAgentSchema)(req.body);
-        const {humanMessage} = body;
-        console.log('userId',req.user)
-        const payload = validate(payloadSchema)(req.user);
-        const {userId} = payload;
-        console.log("HUMANNNN MSG",humanMessage)
-        const userSocket = webSocketUsers.get(userId);
-        if (!userSocket){
-            return res.status(404).json({
-                success: false,
-                error: "Failed to get user"
-            })
-        }
-        // if(!globalStore.userId){
-            //       globalStore.userId={
-                //           messages:[],
-                //           llmCalls:0
-                //       }
-                //     }
-    
-    if (!globalState.has(userId)){
-        const msgState = {
-        messages: [],
-        llmCalls:0
-    }
-        globalState.set(userId,msgState)
+    router.post("/ask-agent", async (req, res) => {
+  try {
+    const body = validate(askAgentSchema)(req.body);
+    const { humanMessage } = body;
+    const payload = validate(payloadSchema)(req.user);
+    const { userId } = payload;
+    const userSocket = webSocketUsers.get(userId);
+
+    if (!userSocket) {
+      return res.status(404).json({
+        success: false,
+        error: "Failed to get user"
+      });
     }
 
-    
-    const projectState:State = globalState.get(userId);
+    // Rate limit 
+    const redisKey = `agent_limit:${userId}`;
+    const currentCount = Number(await client.get(redisKey)) || 0;
+
+    if (currentCount >= 3) {
+      userSocket.send(JSON.stringify({
+        type: "error",
+        message: "You have exceeded your limit....Retry in 5 hours"
+      }));
+      return res.status(429).json({
+        success: false,
+        error: "You have exceeded your limit"
+      });
+    }
+
+    if (currentCount === 0) {
+      await client.set(redisKey, 1, { EX: 18000 }); 
+    } else {
+      await client.incr(redisKey);
+    }
+
+    if (!globalState.has(userId)) {
+      const msgState = {
+        messages: [],
+        llmCalls: 0
+      }
+      globalState.set(userId, msgState)
+    }
+
+    const projectState: State = globalState.get(userId);
     projectState.messages.push(new HumanMessage(humanMessage))
-           try {
+    try {
       await processAgenticMessage(projectState, userSocket);
     } catch (err) {
       console.error("Agentic error:", err);
-      // Optionally send error to websocket here
     }
     res.status(200).json({ message: "Processing your request..." });
 
-        }catch(err){
-            return res.status(404).json({
-                success: false,
-                error: err
-            })
-        }
-    })
+  } catch (err) {
+    return res.status(404).json({
+      success: false,
+      error: err
+    });
+  }
+});
     
      router.post("/execute", async (req, res) => {
         try {

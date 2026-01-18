@@ -45,6 +45,7 @@ ORDER PARAMETERS:
   - "2x leverage"
 - Margin and leverage MUST be numbers when passed to tools
 - Leverage range: 1–100 ONLY
+**IMPORTANT:: MARGIN AND LEVERAGE ARE ALWAYS NUMBER SO REMOVE strings like 2x remove x and if 500$ then $ only extract number from margin and leverage **
 
  If margin or leverage is missing, ALWAYS ask the user to provide them before proceeding.
 

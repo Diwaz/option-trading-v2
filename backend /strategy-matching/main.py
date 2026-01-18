@@ -232,7 +232,7 @@ class StrategyMatcher:
         while True:
             try:
                 messages = await self.redis_client.xread(
-                    {"strategy_stream": "$"},
+                    {"strategy_matching": "$"},
                     count=10,
                     block=1000
                 )
@@ -253,7 +253,7 @@ class StrategyMatcher:
             action = message.get("action")
             
             if action == "ADD_STRATEGY":
-                strategy_id = message.get("id")
+                strategy_id = message.get("requestId")
                 self.active_strategies[strategy_id] = message
                 logger.info(f"Added strategy: {strategy_id} for {message.get('asset')}")
                 
@@ -304,7 +304,7 @@ class StrategyMatcher:
                 price_change = self.indicator_calc.calculate_price_change(asset, periods_ago=5)
                 
                 # Log indicator values occasionally
-                if len(self.indicator_calc.price_history.get(asset, [])) % 20 == 0:
+                if len(self.indicator_calc.price_history.get(asset, [])) % 80 == 0:
                     logger.info(f"{asset}: Price={mid_price:.4f}, RSI={rsi}, MACD={macd_data}")
                 
                 # Check strategies for this asset
